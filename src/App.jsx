@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import Navbar from './components/Navbar';
 import SerialListView from './components/SerialListView';
@@ -10,36 +10,16 @@ import BackupModal from './components/BackupModal';
 import PhoneConnectModal from './components/PhoneConnectModal';
 import Toast from './components/Toast';
 import { INITIAL_SUBJECTS, INITIAL_SNIPPETS } from './data/initialData';
-
-const STORAGE_SUBJECTS_KEY = 'codeorbit_subjects_v1';
-const STORAGE_SNIPPETS_KEY = 'codeorbit_snippets_v1';
+import { fetchVaultData, saveVaultData, subscribeToVaultSync } from './utils/syncService';
 
 export default function App() {
-  // Local storage persistence
-  const [subjects, setSubjects] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_SUBJECTS_KEY);
-      return saved ? JSON.parse(saved) : INITIAL_SUBJECTS;
-    } catch {
-      return INITIAL_SUBJECTS;
-    }
-  });
+  const [subjects, setSubjects] = useState(INITIAL_SUBJECTS);
+  const [snippets, setSnippets] = useState(INITIAL_SNIPPETS);
+  const [activeSubjectId, setActiveSubjectId] = useState('sub-dsa');
+  const [isLiveSync, setIsLiveSync] = useState(false);
 
-  const [snippets, setSnippets] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_SNIPPETS_KEY);
-      return saved ? JSON.parse(saved) : INITIAL_SNIPPETS;
-    } catch {
-      return INITIAL_SNIPPETS;
-    }
-  });
-
-  const [activeSubjectId, setActiveSubjectId] = useState(() => {
-    return subjects[0]?.id || 'sub-dsa';
-  });
-
-  // Views: 'list' (Serial Wise List) or 'network' (Orb Network Diagram)
-  const [activeView, setActiveView] = useState('list');
+  // Views: 'list' (Serial Wise List) or 'network' (Obsidian Orb Network Diagram)
+  const [activeView, setActiveView] = useState('network'); // Default to Obsidian graph to showcase immediately!
 
   // Modals
   const [selectedSnippet, setSelectedSnippet] = useState(null);
@@ -51,22 +31,40 @@ export default function App() {
   // Toast
   const [toastMessage, setToastMessage] = useState('');
 
-  // Persist to LocalStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_SUBJECTS_KEY, JSON.stringify(subjects));
-    } catch (e) {
-      console.error('Failed to save subjects to localStorage', e);
-    }
-  }, [subjects]);
+  // Flag to avoid recursive save triggers during remote sync updates
+  const isSyncingFromRemoteRef = useRef(false);
 
+  // 1. Initial load & real-time sync subscription across laptop & mobile
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_SNIPPETS_KEY, JSON.stringify(snippets));
-    } catch (e) {
-      console.error('Failed to save snippets to localStorage', e);
-    }
-  }, [snippets]);
+    let isMounted = true;
+
+    const syncFromRemote = async () => {
+      const data = await fetchVaultData();
+      if (!isMounted) return;
+      if (data.subjects && data.snippets) {
+        isSyncingFromRemoteRef.current = true;
+        setSubjects(data.subjects);
+        setSnippets(data.snippets);
+        setIsLiveSync(data.isLive);
+        setTimeout(() => {
+          isSyncingFromRemoteRef.current = false;
+        }, 300);
+      }
+    };
+
+    // Initial sync
+    syncFromRemote();
+
+    // Subscribe to SSE updates from server
+    const unsubscribe = subscribeToVaultSync(() => {
+      syncFromRemote();
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
 
   // Ensure active subject exists
   useEffect(() => {
@@ -82,6 +80,14 @@ export default function App() {
     }, 2800);
   };
 
+  // Central persistence dispatcher: updates local state AND broadcasts to laptop/phone
+  const commitVaultChange = (newSubjects, newSnippets, feedbackMsg) => {
+    setSubjects(newSubjects);
+    setSnippets(newSnippets);
+    saveVaultData(newSubjects, newSnippets);
+    if (feedbackMsg) showToast(feedbackMsg);
+  };
+
   const activeSubject = subjects.find(s => s.id === activeSubjectId) || subjects[0] || {
     id: 'sub-default',
     name: 'General',
@@ -92,37 +98,36 @@ export default function App() {
 
   // Snippet Handlers
   const handleCreateSnippet = (newSnippet) => {
-    setSnippets(prev => [...prev, newSnippet]);
-    // Switch to that subject if created under another one
+    const updated = [...snippets, newSnippet];
+    commitVaultChange(subjects, updated, `Saved "${newSnippet.title}"! (Synced)`);
     if (newSnippet.subjectId !== activeSubjectId) {
       setActiveSubjectId(newSnippet.subjectId);
     }
   };
 
   const handleUpdateSnippet = (updatedSnippet) => {
-    setSnippets(prev => prev.map(s => s.id === updatedSnippet.id ? updatedSnippet : s));
+    const updated = snippets.map(s => s.id === updatedSnippet.id ? updatedSnippet : s);
+    commitVaultChange(subjects, updated, 'Updated & synced across devices!');
     setSelectedSnippet(updatedSnippet);
   };
 
   const handleDeleteSnippet = (snippetId) => {
-    setSnippets(prev => {
-      const remaining = prev.filter(s => s.id !== snippetId);
-      // Re-index serial numbers for that subject
-      let counter = 1;
-      return remaining.map(s => {
-        if (s.subjectId === activeSubjectId) {
-          return { ...s, serialNumber: counter++ };
-        }
-        return s;
-      });
+    const remaining = snippets.filter(s => s.id !== snippetId);
+    let counter = 1;
+    const reindexed = remaining.map(s => {
+      if (s.subjectId === activeSubjectId) {
+        return { ...s, serialNumber: counter++ };
+      }
+      return s;
     });
+
+    commitVaultChange(subjects, reindexed, 'Deleted & synced');
     if (selectedSnippet && selectedSnippet.id === snippetId) {
       setSelectedSnippet(null);
     }
   };
 
   const handleMoveSnippet = (snippetId, direction) => {
-    // direction: -1 (up) or 1 (down)
     const list = currentSubjectSnippets.slice().sort((a, b) => (a.serialNumber || 0) - (b.serialNumber || 0));
     const currentIndex = list.findIndex(s => s.id === snippetId);
     if (currentIndex === -1) return;
@@ -130,7 +135,6 @@ export default function App() {
     const targetIndex = currentIndex + direction;
     if (targetIndex < 0 || targetIndex >= list.length) return;
 
-    // Swap serial numbers
     const current = list[currentIndex];
     const target = list[targetIndex];
 
@@ -138,46 +142,56 @@ export default function App() {
     current.serialNumber = target.serialNumber;
     target.serialNumber = tempSerial;
 
-    setSnippets(prev => prev.map(s => {
+    const updated = snippets.map(s => {
       if (s.id === current.id) return { ...current };
       if (s.id === target.id) return { ...target };
       return s;
-    }));
+    });
 
-    showToast(`Reordered to #${current.serialNumber}`);
+    commitVaultChange(subjects, updated, `Reordered to #${current.serialNumber} (Synced)`);
   };
 
   // Subject Handlers
   const handleCreateSubject = (newSubject) => {
-    setSubjects(prev => [...prev, newSubject]);
+    const newSubjects = [...subjects, newSubject];
+    commitVaultChange(newSubjects, snippets, `Subject "${newSubject.name}" created! (Synced)`);
     setActiveSubjectId(newSubject.id);
   };
 
   const handleDeleteSubject = (subjectId) => {
-    setSubjects(prev => prev.filter(s => s.id !== subjectId));
-    setSnippets(prev => prev.filter(s => s.subjectId !== subjectId));
+    const remainingSubs = subjects.filter(s => s.id !== subjectId);
+    const remainingSnips = snippets.filter(s => s.subjectId !== subjectId);
+    commitVaultChange(remainingSubs, remainingSnips, 'Subject deleted (Synced)');
   };
 
   // Backup & Reset Handlers
   const handleImportData = (newSubjects, newSnippets) => {
-    setSubjects(newSubjects);
-    setSnippets(newSnippets);
+    commitVaultChange(newSubjects, newSnippets, 'Vault imported & synced!');
     if (newSubjects.length > 0) {
       setActiveSubjectId(newSubjects[0].id);
     }
   };
 
   const handleResetToDefaults = () => {
-    setSubjects(INITIAL_SUBJECTS);
-    setSnippets(INITIAL_SNIPPETS);
+    commitVaultChange(INITIAL_SUBJECTS, INITIAL_SNIPPETS, 'Reset to default samples!');
     setActiveSubjectId(INITIAL_SUBJECTS[0].id);
-    localStorage.removeItem(STORAGE_SUBJECTS_KEY);
-    localStorage.removeItem(STORAGE_SNIPPETS_KEY);
+  };
+
+  const handleManualSync = async () => {
+    const data = await fetchVaultData();
+    if (data.subjects && data.snippets) {
+      setSubjects(data.subjects);
+      setSnippets(data.snippets);
+      setIsLiveSync(data.isLive);
+      showToast('Synced with laptop in real time! 🟢');
+    } else {
+      showToast('Working offline (cached locally)');
+    }
   };
 
   return (
     <div className="app-layout">
-      {/* Navbar with View Switcher & Subject Tabs */}
+      {/* Navbar with View Switcher, Subject Tabs & Live Sync Status */}
       <Navbar
         activeView={activeView}
         setActiveView={setActiveView}
@@ -185,6 +199,8 @@ export default function App() {
         activeSubjectId={activeSubjectId}
         setActiveSubjectId={setActiveSubjectId}
         snippets={snippets}
+        isLiveSync={isLiveSync}
+        onManualSync={handleManualSync}
         onOpenSubjectModal={() => setIsSubjectModalOpen(true)}
         onOpenNewSnippetModal={() => setIsNewSnippetModalOpen(true)}
         onOpenBackupModal={() => setIsBackupModalOpen(true)}
@@ -199,12 +215,12 @@ export default function App() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '16px',
+            marginBottom: '14px',
             padding: '12px 16px',
-            background: 'rgba(15, 23, 42, 0.5)',
-            backdropFilter: 'blur(10px)',
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(12px)',
             borderRadius: '16px',
-            border: '1px solid rgba(255, 255, 255, 0.06)'
+            border: '1px solid rgba(255, 255, 255, 0.08)'
           }}
         >
           <div>
@@ -240,23 +256,25 @@ export default function App() {
             </p>
           </div>
 
-          <div
-            style={{
-              padding: '6px 12px',
-              borderRadius: '999px',
-              background: `${activeSubject.color || '#38bdf8'}18`,
-              border: `1px solid ${activeSubject.color || '#38bdf8'}33`,
-              fontSize: '12px',
-              fontWeight: 700,
-              color: activeSubject.color || '#38bdf8',
-              fontFamily: '"JetBrains Mono", monospace'
-            }}
-          >
-            {currentSubjectSnippets.length} Code Orbs
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div
+              style={{
+                padding: '6px 12px',
+                borderRadius: '999px',
+                background: `${activeSubject.color || '#38bdf8'}18`,
+                border: `1px solid ${activeSubject.color || '#38bdf8'}33`,
+                fontSize: '12px',
+                fontWeight: 700,
+                color: activeSubject.color || '#38bdf8',
+                fontFamily: '"JetBrains Mono", monospace'
+              }}
+            >
+              {currentSubjectSnippets.length} Code Orbs
+            </div>
           </div>
         </div>
 
-        {/* Dynamic View: Serial List or Orb Network Diagram */}
+        {/* Dynamic View: Serial List or Obsidian-style Orb Network Diagram */}
         {activeView === 'list' ? (
           <SerialListView
             subject={activeSubject}
@@ -271,6 +289,8 @@ export default function App() {
           <NetworkDiagramView
             subject={activeSubject}
             snippets={currentSubjectSnippets}
+            allSubjects={subjects}
+            allSnippets={snippets}
             onSelectSnippet={(snip) => setSelectedSnippet(snip)}
             onAddNewSnippet={() => setIsNewSnippetModalOpen(true)}
           />
@@ -281,7 +301,7 @@ export default function App() {
       {selectedSnippet && (
         <CodeDetailModal
           snippet={selectedSnippet}
-          subject={activeSubject}
+          subject={subjects.find(s => s.id === selectedSnippet.subjectId) || activeSubject}
           onClose={() => setSelectedSnippet(null)}
           onUpdateSnippet={handleUpdateSnippet}
           onDeleteSnippet={handleDeleteSnippet}

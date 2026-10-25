@@ -6,7 +6,8 @@ import {
   Layers,
   FileJson,
   Smartphone,
-  Share2
+  RefreshCw,
+  Wifi
 } from 'lucide-react';
 
 export default function Navbar({
@@ -16,6 +17,8 @@ export default function Navbar({
   activeSubjectId,
   setActiveSubjectId,
   snippets,
+  isLiveSync,
+  onManualSync,
   onOpenSubjectModal,
   onOpenNewSnippetModal,
   onOpenBackupModal,
@@ -45,7 +48,7 @@ export default function Navbar({
           gap: '12px'
         }}
       >
-        {/* Brand Logo */}
+        {/* Brand Logo & Live Sync Indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div
             style={{
@@ -97,20 +100,39 @@ export default function Navbar({
             >
               CodeOrbit
             </h1>
-            <p
-              style={{
-                margin: 0,
-                fontSize: '11px',
-                color: '#64748b',
-                fontWeight: 500
-              }}
-            >
-              Mobile Subject & Code Vault
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                onClick={onManualSync}
+                title="Laptop ↔ Phone Real-Time Sync Status (Click to force refresh)"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  color: isLiveSync ? '#34d399' : '#94a3b8',
+                  fontWeight: 600
+                }}
+              >
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    background: isLiveSync ? '#10b981' : '#f59e0b',
+                    boxShadow: isLiveSync ? '0 0 8px #10b981' : 'none'
+                  }}
+                />
+                <span>{isLiveSync ? 'Live Synced' : 'Syncing...'}</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* View Switcher: Serial List vs Orb Network Diagram */}
+        {/* View Switcher: Serial List vs Obsidian Graph */}
         <div
           style={{
             display: 'flex',
@@ -120,6 +142,29 @@ export default function Navbar({
             border: '1px solid rgba(255, 255, 255, 0.1)'
           }}
         >
+          <button
+            onClick={() => setActiveView('network')}
+            aria-label="Obsidian Graph View"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 12px',
+              borderRadius: '11px',
+              border: 'none',
+              background: activeView === 'network' ? 'linear-gradient(135deg, #a855f7, #6366f1)' : 'transparent',
+              color: activeView === 'network' ? '#ffffff' : '#94a3b8',
+              fontWeight: 700,
+              fontSize: '12px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: activeView === 'network' ? '0 0 12px rgba(168, 85, 247, 0.4)' : 'none'
+            }}
+          >
+            <Sparkles size={15} />
+            <span>Graph</span>
+          </button>
+
           <button
             onClick={() => setActiveView('list')}
             aria-label="Serial Wise List View"
@@ -140,29 +185,6 @@ export default function Navbar({
           >
             <ListFilter size={15} />
             <span>List</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView('network')}
-            aria-label="Orb Network Diagram View"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 12px',
-              borderRadius: '11px',
-              border: 'none',
-              background: activeView === 'network' ? 'linear-gradient(135deg, #a855f7, #6366f1)' : 'transparent',
-              color: activeView === 'network' ? '#ffffff' : '#94a3b8',
-              fontWeight: 700,
-              fontSize: '12px',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              boxShadow: activeView === 'network' ? '0 0 12px rgba(168, 85, 247, 0.4)' : 'none'
-            }}
-          >
-            <Sparkles size={15} />
-            <span>Orb Net</span>
           </button>
         </div>
 
@@ -190,7 +212,7 @@ export default function Navbar({
 
           <button
             onClick={onOpenBackupModal}
-            title="Backup & Sync"
+            title="Backup & Sync Vault"
             aria-label="Backup and sync vault"
             style={{
               width: '36px',

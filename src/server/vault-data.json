@@ -1,0 +1,180 @@
+{
+  "subjects": [
+    {
+      "id": "sub-dsa",
+      "name": "DSA",
+      "description": "Data Structures & Algorithms in Java & C++",
+      "color": "#38bdf8",
+      "icon": "Boxes",
+      "createdAt": "2026-10-20"
+    },
+    {
+      "id": "sub-oops",
+      "name": "OOPs",
+      "description": "Object Oriented Principles, Design Patterns & Architecture",
+      "color": "#a855f7",
+      "icon": "Layers",
+      "createdAt": "2026-10-21"
+    },
+    {
+      "id": "sub-java",
+      "name": "Java",
+      "description": "Modern Java 17/21, Concurrency, Streams & Core APIs",
+      "color": "#f59e0b",
+      "icon": "Coffee",
+      "createdAt": "2026-10-22"
+    }
+  ],
+  "snippets": [
+    {
+      "id": "snip-dsa-1",
+      "subjectId": "sub-dsa",
+      "serialNumber": 1,
+      "title": "Binary Search (Iterative & Robust)",
+      "language": "java",
+      "tags": [
+        "Searching",
+        "Arrays",
+        "O(log N)"
+      ],
+      "notes": "Avoid integer overflow by using low + (high - low) / 2 instead of (low + high) / 2. Array must be sorted.",
+      "createdAt": "2026-10-20",
+      "code": "public class BinarySearch {\n    public static int search(int[] nums, int target) {\n        int low = 0;\n        int high = nums.length - 1;\n\n        while (low <= high) {\n            // Prevent integer overflow\n            int mid = low + (high - low) / 2;\n\n            if (nums[mid] == target) {\n                return mid; // Found index\n            } else if (nums[mid] < target) {\n                low = mid + 1; // Search right half\n            } else {\n                high = mid - 1; // Search left half\n            }\n        }\n        return -1; // Not found\n    }\n\n    public static void main(String[] args) {\n        int[] arr = {2, 5, 8, 12, 16, 23, 38, 56, 72, 91};\n        int target = 23;\n        int result = search(arr, target);\n        System.out.println(\"Element \" + target + \" found at index: \" + result);\n    }\n}"
+    },
+    {
+      "id": "snip-dsa-2",
+      "subjectId": "sub-dsa",
+      "serialNumber": 2,
+      "title": "Two Sum using HashMap (O(N) Time)",
+      "language": "java",
+      "tags": [
+        "Hash Table",
+        "Arrays",
+        "LeetCode 1"
+      ],
+      "notes": "Single pass hash table approach. Complements are checked in O(1) average time.",
+      "createdAt": "2026-10-21",
+      "code": "import java.util.HashMap;\nimport java.util.Map;\n\npublic class TwoSum {\n    public static int[] findTwoSum(int[] nums, int target) {\n        // Map: value -> index\n        Map<Integer, Integer> map = new HashMap<>();\n\n        for (int i = 0; i < nums.length; i++) {\n            int complement = target - nums[i];\n            if (map.containsKey(complement)) {\n                return new int[] { map.get(complement), i };\n            }\n            map.put(nums[i], i);\n        }\n        throw new IllegalArgumentException(\"No two sum solution\");\n    }\n\n    public static void main(String[] args) {\n        int[] nums = {2, 7, 11, 15};\n        int target = 9;\n        int[] indices = findTwoSum(nums, target);\n        System.out.printf(\"Indices: [%d, %d]%n\", indices[0], indices[1]);\n    }\n}"
+    },
+    {
+      "id": "snip-dsa-3",
+      "subjectId": "sub-dsa",
+      "serialNumber": 3,
+      "title": "Reverse a Singly Linked List (Iterative)",
+      "language": "java",
+      "tags": [
+        "Linked List",
+        "Pointers",
+        "Classic"
+      ],
+      "notes": "Three pointers: prev, curr, next. In-place reversal with O(1) extra space.",
+      "createdAt": "2026-10-22",
+      "code": "class ListNode {\n    int val;\n    ListNode next;\n    ListNode(int val) { this.val = val; }\n}\n\npublic class ReverseLinkedList {\n    public static ListNode reverseList(ListNode head) {\n        ListNode prev = null;\n        ListNode curr = head;\n\n        while (curr != null) {\n            ListNode nextTemp = curr.next; // store next node\n            curr.next = prev;             // reverse current pointer\n            prev = curr;                  // move prev forward\n            curr = nextTemp;              // move curr forward\n        }\n        return prev; // new head\n    }\n}"
+    },
+    {
+      "id": "snip-dsa-4",
+      "subjectId": "sub-dsa",
+      "serialNumber": 4,
+      "title": "LRU Cache (HashMap + Doubly Linked List)",
+      "language": "java",
+      "tags": [
+        "Design",
+        "Doubly LinkedList",
+        "O(1)"
+      ],
+      "notes": "O(1) get and put operations by combining a Hash Map with a Doubly Linked List for tracking least recently used items.",
+      "createdAt": "2026-10-23",
+      "code": "import java.util.HashMap;\nimport java.util.Map;\n\npublic class LRUCache {\n    class Node {\n        int key, value;\n        Node prev, next;\n        Node(int k, int v) { key = k; value = v; }\n    }\n\n    private final int capacity;\n    private final Map<Integer, Node> map;\n    private final Node head, tail;\n\n    public LRUCache(int capacity) {\n        this.capacity = capacity;\n        this.map = new HashMap<>();\n        head = new Node(0, 0);\n        tail = new Node(0, 0);\n        head.next = tail;\n        tail.prev = head;\n    }\n\n    private void remove(Node node) {\n        node.prev.next = node.next;\n        node.next.prev = node.prev;\n    }\n\n    private void insertToFront(Node node) {\n        node.next = head.next;\n        node.prev = head;\n        head.next.prev = node;\n        head.next = node;\n    }\n\n    public int get(int key) {\n        if (!map.containsKey(key)) return -1;\n        Node node = map.get(key);\n        remove(node);\n        insertToFront(node);\n        return node.value;\n    }\n\n    public void put(int key, int value) {\n        if (map.containsKey(key)) {\n            remove(map.get(key));\n        }\n        if (map.size() == capacity) {\n            map.remove(tail.prev.key);\n            remove(tail.prev);\n        }\n        Node newNode = new Node(key, value);\n        insertToFront(newNode);\n        map.put(key, newNode);\n    }\n}"
+    },
+    {
+      "id": "snip-oops-1",
+      "subjectId": "sub-oops",
+      "serialNumber": 1,
+      "title": "Runtime Polymorphism (Dynamic Method Dispatch)",
+      "language": "java",
+      "tags": [
+        "Polymorphism",
+        "Inheritance",
+        "Overriding"
+      ],
+      "notes": "Demonstrates dynamic binding where method call is resolved at runtime based on the actual object instance, not reference type.",
+      "createdAt": "2026-10-21",
+      "code": "abstract class Payment {\n    abstract void processPayment(double amount);\n}\n\nclass UpiPayment extends Payment {\n    private final String vpa;\n    UpiPayment(String vpa) { this.vpa = vpa; }\n\n    @Override\n    void processPayment(double amount) {\n        System.out.printf(\"Paid $%.2f via UPI ID: %s%n\", amount, vpa);\n    }\n}\n\nclass CreditCardPayment extends Payment {\n    private final String last4;\n    CreditCardPayment(String last4) { this.last4 = last4; }\n\n    @Override\n    void processPayment(double amount) {\n        System.out.printf(\"Charged $%.2f to Card ending in %s%n\", amount, last4);\n    }\n}\n\npublic class PolymorphismDemo {\n    public static void main(String[] args) {\n        Payment p1 = new UpiPayment(\"alex@okhdfcbank\");\n        Payment p2 = new CreditCardPayment(\"4021\");\n\n        // Runtime dynamic dispatch\n        p1.processPayment(150.00);\n        p2.processPayment(320.50);\n    }\n}"
+    },
+    {
+      "id": "snip-oops-2",
+      "subjectId": "sub-oops",
+      "serialNumber": 2,
+      "title": "Thread-Safe Singleton (Bill Pugh Implementation)",
+      "language": "java",
+      "tags": [
+        "Creational Pattern",
+        "Concurrency",
+        "Lazy Loading"
+      ],
+      "notes": "Bill Pugh singleton uses static inner helper class. Thread-safe without explicit synchronization overhead, loaded only on first call.",
+      "createdAt": "2026-10-22",
+      "code": "public class DatabaseConnectionPool {\n    \n    // Private constructor prevents direct instantiation\n    private DatabaseConnectionPool() {\n        System.out.println(\"Initializing Database Connection Pool...\");\n    }\n\n    // Static inner helper class: only loaded when getInstance() is invoked\n    private static class SingletonHelper {\n        private static final DatabaseConnectionPool INSTANCE = new DatabaseConnectionPool();\n    }\n\n    public static DatabaseConnectionPool getInstance() {\n        return SingletonHelper.INSTANCE;\n    }\n\n    public void executeQuery(String sql) {\n        System.out.println(\"Executing query: \" + sql);\n    }\n\n    public static void main(String[] args) {\n        DatabaseConnectionPool pool1 = DatabaseConnectionPool.getInstance();\n        DatabaseConnectionPool pool2 = DatabaseConnectionPool.getInstance();\n\n        System.out.println(\"Same instance? \" + (pool1 == pool2)); // true\n    }\n}"
+    },
+    {
+      "id": "snip-oops-3",
+      "subjectId": "sub-oops",
+      "serialNumber": 3,
+      "title": "Factory Method Pattern with Extensibility",
+      "language": "java",
+      "tags": [
+        "Factory Pattern",
+        "Decoupling",
+        "Design Principles"
+      ],
+      "notes": "Decouples object creation logic from caller code. Adheres to Open-Closed Principle (OCP).",
+      "createdAt": "2026-10-23",
+      "code": "interface Notification {\n    void notifyUser(String message);\n}\n\nclass SMSNotification implements Notification {\n    @Override\n    public void notifyUser(String message) {\n        System.out.println(\"Sending SMS: \" + message);\n    }\n}\n\nclass EmailNotification implements Notification {\n    @Override\n    public void notifyUser(String message) {\n        System.out.println(\"Sending Email: \" + message);\n    }\n}\n\nclass PushNotification implements Notification {\n    @Override\n    public void notifyUser(String message) {\n        System.out.println(\"Push Notification alert: \" + message);\n    }\n}\n\nclass NotificationFactory {\n    public static Notification createNotification(String channel) {\n        if (channel == null || channel.isEmpty()) return null;\n        return switch (channel.toUpperCase()) {\n            case \"SMS\" -> new SMSNotification();\n            case \"EMAIL\" -> new EmailNotification();\n            case \"PUSH\" -> new PushNotification();\n            default -> throw new IllegalArgumentException(\"Unknown channel: \" + channel);\n        };\n    }\n}"
+    },
+    {
+      "id": "snip-java-1",
+      "subjectId": "sub-java",
+      "serialNumber": 1,
+      "title": "Stream API Pipeline: Filter, Map & Collect",
+      "language": "java",
+      "tags": [
+        "Java 8+",
+        "Functional",
+        "Streams"
+      ],
+      "notes": "Demonstrates declarative data processing: filtering, transforming, sorting, and grouping items into maps.",
+      "createdAt": "2026-10-22",
+      "code": "import java.util.*;\nimport java.util.stream.Collectors;\n\nrecord Student(String name, String subject, int score) {}\n\npublic class StreamDemo {\n    public static void main(String[] args) {\n        List<Student> students = List.of(\n            new Student(\"Aarav\", \"DSA\", 95),\n            new Student(\"Priya\", \"Java\", 88),\n            new Student(\"Rohan\", \"DSA\", 72),\n            new Student(\"Neha\", \"OOPs\", 91),\n            new Student(\"Karan\", \"Java\", 94)\n        );\n\n        // 1. Filter students scoring >= 90 and get top names sorted\n        List<String> topPerformers = students.stream()\n            .filter(s -> s.score() >= 90)\n            .sorted(Comparator.comparingInt(Student::score).reversed())\n            .map(Student::name)\n            .toList();\n\n        System.out.println(\"Top Performers: \" + topPerformers);\n\n        // 2. Group by subject and calculate average score\n        Map<String, Double> avgBySubject = students.stream()\n            .collect(Collectors.groupingBy(\n                Student::subject,\n                Collectors.averagingInt(Student::score)\n            ));\n\n        System.out.println(\"Average by Subject: \" + avgBySubject);\n    }\n}"
+    },
+    {
+      "id": "snip-java-2",
+      "subjectId": "sub-java",
+      "serialNumber": 2,
+      "title": "ExecutorService & ThreadPool Concurrency",
+      "language": "java",
+      "tags": [
+        "Multithreading",
+        "Executors",
+        "Concurrency"
+      ],
+      "notes": "Thread management using FixedThreadPool. Avoid manually creating new Thread() objects to prevent resource exhaustion.",
+      "createdAt": "2026-10-23",
+      "code": "import java.util.concurrent.*;\n\npublic class ExecutorServiceDemo {\n    public static void main(String[] args) throws InterruptedException {\n        int cores = Runtime.getRuntime().availableProcessors();\n        ExecutorService executor = Executors.newFixedThreadPool(cores);\n\n        for (int i = 1; i <= 5; i++) {\n            final int taskId = i;\n            executor.submit(() -> {\n                String threadName = Thread.currentThread().getName();\n                System.out.printf(\"[%s] Started task #%d%n\", threadName, taskId);\n                try {\n                    Thread.sleep(500); // simulate IO/CPU work\n                } catch (InterruptedException e) {\n                    Thread.currentThread().interrupt();\n                }\n                System.out.printf(\"[%s] Finished task #%d%n\", threadName, taskId);\n            });\n        }\n\n        executor.shutdown();\n        boolean finished = executor.awaitTermination(5, TimeUnit.SECONDS);\n        System.out.println(\"All tasks finished? \" + finished);\n    }\n}"
+    },
+    {
+      "id": "snip-java-3",
+      "subjectId": "sub-java",
+      "serialNumber": 3,
+      "title": "CompletableFuture Asynchronous Chaining",
+      "language": "java",
+      "tags": [
+        "Async",
+        "CompletableFuture",
+        "Reactive"
+      ],
+      "notes": "Non-blocking async pipelines with thenApply, thenCompose, and exception handling using exceptionally.",
+      "createdAt": "2026-10-24",
+      "code": "import java.util.concurrent.CompletableFuture;\n\npublic class AsyncWorkflow {\n    public static void main(String[] args) {\n        CompletableFuture.supplyAsync(() -> {\n            System.out.println(\"Fetching user profile data...\");\n            simulateDelay(600);\n            return \"User: JohnDoe\";\n        }).thenApply(user -> {\n            System.out.println(\"Enriching with credit balance...\");\n            return user + \" | Balance: $4,500\";\n        }).thenAccept(result -> {\n            System.out.println(\"Final Result: \" + result);\n        }).exceptionally(ex -> {\n            System.err.println(\"Failed with error: \" + ex.getMessage());\n            return null;\n        }).join(); // wait for completion in main\n    }\n\n    private static void simulateDelay(long ms) {\n        try { Thread.sleep(ms); } catch (InterruptedException ignored) {}\n    }\n}"
+    }
+  ]
+}

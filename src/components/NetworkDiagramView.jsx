@@ -1,20 +1,38 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Maximize2, Minimize2, ZoomIn, ZoomOut, RefreshCw, Sparkles, Plus, Code2 } from 'lucide-react';
+import {
+  ZoomIn,
+  ZoomOut,
+  RefreshCw,
+  Sparkles,
+  Plus,
+  Code2,
+  Layers,
+  Search,
+  Maximize2,
+  Minimize2,
+  Filter
+} from 'lucide-react';
 
 export default function NetworkDiagramView({
   subject,
   snippets,
+  allSubjects = [],
+  allSnippets = [],
   onSelectSnippet,
   onAddNewSnippet
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
 
+  // Graph mode: 'global' (All subjects + snippets like Obsidian) or 'subject' (only current subject)
+  const [graphMode, setGraphMode] = useState('global');
   const [hoveredNode, setHoveredNode] = useState(null);
-  const [zoomLevel, setZoomLevel] = useState(1);
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [searchFilter, setSearchFilter] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [stats, setStats] = useState({ nodes: 0, links: 0 });
 
-  // Physics simulation state stored in refs to avoid re-triggering render loops
+  // Physics simulation state held in ref to maintain 60fps smooth rendering
   const stateRef = useRef({
     nodes: [],
     links: [],
@@ -26,160 +44,196 @@ export default function NetworkDiagramView({
     lastTouchDistance: null,
     touchStartTime: 0,
     hasMoved: false,
-    width: 0,
-    height: 0
+    width: 800,
+    height: 600,
+    animating: true
   });
 
-  // Initialize or update nodes and links whenever snippets or subject change
+  // Re-build nodes and links when subjects, snippets, or graphMode change
   useEffect(() => {
     const s = stateRef.current;
-    const width = s.width || 600;
-    const height = s.height || 500;
+    const w = s.width || 800;
+    const h = s.height || 600;
 
-    // Central Core Node (The Subject)
-    const centerNode = {
-      id: 'center-core',
-      isCenter: true,
-      label: subject.name,
-      sublabel: `${snippets.length} Topics`,
-      x: width / 2,
-      y: height / 2,
-      vx: 0,
-      vy: 0,
-      radius: 46,
-      color: subject.color || '#38bdf8'
-    };
+    let targetSubjects = [];
+    let targetSnippets = [];
 
-    // Snippet Nodes (The Code Orbs)
-    const count = snippets.length;
-    const snippetNodes = snippets.map((snip, index) => {
-      // Find existing position if preserved
+    if (graphMode === 'global') {
+      // Obsidian Global Vault Graph Mode: All subjects and all snippets
+      targetSubjects = allSubjects.length ? allSubjects : [subject];
+      targetSnippets = allSnippets.length ? allSnippets : snippets;
+    } else {
+      // Focused Single Subject Graph Mode
+      targetSubjects = [subject];
+      targetSnippets = snippets;
+    }
+
+    const newNodes = [];
+    const newLinks = [];
+
+    // 1. Create Subject Hub Nodes
+    const subjectNodeMap = new Map();
+    const subCount = targetSubjects.length;
+
+    targetSubjects.forEach((sub, i) => {
+      const existing = s.nodes.find(n => n.id === `sub-${sub.id}`);
+      const angle = (i / (subCount || 1)) * 2 * Math.PI;
+      const dist = subCount > 1 ? Math.min(w, h) * 0.28 : 0;
+
+      const subNode = {
+        id: `sub-${sub.id}`,
+        isHub: true,
+        subjectId: sub.id,
+        label: sub.name,
+        color: sub.color || '#38bdf8',
+        radius: subCount > 1 ? 26 : 34,
+        x: existing ? existing.x : w / 2 + Math.cos(angle) * dist,
+        y: existing ? existing.y : h / 2 + Math.sin(angle) * dist,
+        vx: 0,
+        vy: 0
+      };
+
+      subjectNodeMap.set(sub.id, subNode);
+      newNodes.push(subNode);
+    });
+
+    // 2. Connect Subject Hubs together if global view (cross-discipline knowledge link)
+    if (targetSubjects.length > 1) {
+      for (let i = 0; i < targetSubjects.length; i++) {
+        for (let j = i + 1; j < targetSubjects.length; j++) {
+          newLinks.push({
+            source: subjectNodeMap.get(targetSubjects[i].id),
+            target: subjectNodeMap.get(targetSubjects[j].id),
+            distance: Math.min(w, h) * 0.45,
+            strength: 0.015,
+            isInterSubject: true
+          });
+        }
+      }
+    }
+
+    // 3. Create Snippet Code Nodes & Link to their respective Subject Hubs
+    targetSnippets.forEach((snip, index) => {
+      const parentHub = subjectNodeMap.get(snip.subjectId) || subjectNodeMap.get(subject.id);
       const existing = s.nodes.find(n => n.id === snip.id);
-      const angle = (index / (count || 1)) * 2 * Math.PI;
-      const initialDist = 130 + (index % 2) * 55;
 
-      return {
+      // Distribute snippets radially around their parent subject hub
+      const angle = (index * 1.61803398875) * 2 * Math.PI; // Golden ratio spiral distribution
+      const hubX = parentHub ? parentHub.x : w / 2;
+      const hubY = parentHub ? parentHub.y : h / 2;
+      const initialDist = 80 + (index % 4) * 35;
+
+      const snipNode = {
         id: snip.id,
-        isCenter: false,
+        isHub: false,
         snippet: snip,
+        subjectId: snip.subjectId,
         serialNumber: snip.serialNumber || (index + 1),
         label: snip.title,
         language: snip.language || 'code',
-        x: existing ? existing.x : width / 2 + Math.cos(angle) * initialDist,
-        y: existing ? existing.y : height / 2 + Math.sin(angle) * initialDist,
+        color: parentHub ? parentHub.color : (subject.color || '#38bdf8'),
+        radius: 16,
+        x: existing ? existing.x : hubX + Math.cos(angle) * initialDist,
+        y: existing ? existing.y : hubY + Math.sin(angle) * initialDist,
         vx: 0,
-        vy: 0,
-        radius: 30,
-        color: subject.color || '#38bdf8'
+        vy: 0
       };
-    });
 
-    s.nodes = [centerNode, ...snippetNodes];
+      newNodes.push(snipNode);
 
-    // Links between center and all snippets + subtle sibling links
-    const links = snippetNodes.map(node => ({
-      source: centerNode,
-      target: node,
-      distance: 140,
-      strength: 0.05
-    }));
-
-    // Optional ring connection between sequential snippets
-    for (let i = 0; i < snippetNodes.length - 1; i++) {
-      links.push({
-        source: snippetNodes[i],
-        target: snippetNodes[i + 1],
-        distance: 110,
-        strength: 0.02,
-        isRing: true
-      });
-    }
-
-    s.links = links;
-
-    // Ambient floating cosmic dust
-    if (s.particles.length === 0) {
-      const particles = [];
-      for (let i = 0; i < 40; i++) {
-        particles.push({
-          x: Math.random() * width,
-          y: Math.random() * height,
-          size: Math.random() * 2 + 0.5,
-          alpha: Math.random() * 0.6 + 0.2,
-          speed: Math.random() * 0.3 + 0.1
+      if (parentHub) {
+        newLinks.push({
+          source: parentHub,
+          target: snipNode,
+          distance: 100,
+          strength: 0.04
         });
       }
-      s.particles = particles;
-    }
-  }, [subject, snippets]);
+    });
 
-  // Main Canvas Render & Physics Loop
+    s.nodes = newNodes;
+    s.links = newLinks;
+    setStats({ nodes: newNodes.length, links: newLinks.length });
+
+    // Ambient cosmic dust particles
+    if (s.particles.length === 0) {
+      const parts = [];
+      for (let i = 0; i < 50; i++) {
+        parts.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          size: Math.random() * 1.8 + 0.4,
+          alpha: Math.random() * 0.5 + 0.1,
+          speed: Math.random() * 0.2 + 0.05
+        });
+      }
+      s.particles = parts;
+    }
+  }, [subject, snippets, allSubjects, allSnippets, graphMode]);
+
+  // Main Canvas Rendering & Obsidian Physics Simulation Loop
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
     const ctx = canvas.getContext('2d');
     let animationFrameId;
 
-    // Resize observer to handle dynamic orientation changes on phones
-    const updateDimensions = () => {
-      if (!containerRef.current || !canvas) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+    const resizeCanvas = () => {
+      const rect = container.getBoundingClientRect();
       const w = Math.max(rect.width, 320);
-      const h = Math.max(rect.height, 400);
+      const h = Math.max(rect.height, 460);
+      const dpr = window.devicePixelRatio || 1;
 
       canvas.width = w * dpr;
       canvas.height = h * dpr;
-      ctx.scale(dpr, dpr);
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
 
       stateRef.current.width = w;
       stateRef.current.height = h;
 
-      // Adjust center node if freshly mounted
-      const center = stateRef.current.nodes.find(n => n.isCenter);
-      if (center && (!center.x || center.x === 300)) {
-        center.x = w / 2;
-        center.y = h / 2;
-      }
+      // Scale context for retina screens
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
+    resizeCanvas();
+    const ro = new ResizeObserver(resizeCanvas);
+    ro.observe(container);
 
-    let pulseTime = 0;
+    let time = 0;
 
     const render = () => {
-      pulseTime += 0.03;
+      time += 0.02;
       const s = stateRef.current;
       const w = s.width;
       const h = s.height;
       const t = s.transform;
 
       ctx.save();
+      // Clear screen
       ctx.clearRect(0, 0, w, h);
 
-      // Canvas background gradient
-      const bgGrad = ctx.createRadialGradient(w / 2, h / 2, 50, w / 2, h / 2, Math.max(w, h));
-      bgGrad.addColorStop(0, 'rgba(17, 24, 39, 0.4)');
-      bgGrad.addColorStop(1, 'rgba(9, 13, 22, 0.9)');
-      ctx.fillStyle = bgGrad;
+      // Deep Obsidian Theme Background
+      const grad = ctx.createRadialGradient(w / 2, h / 2, 80, w / 2, h / 2, Math.max(w, h));
+      grad.addColorStop(0, '#0e1424');
+      grad.addColorStop(1, '#080c16');
+      ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
-      // Draw subtle grid dots
-      ctx.save();
+      // Subtle coordinate star-dots (Obsidian background graph texture)
       ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-      const gridSize = 32;
-      for (let gx = 0; gx < w; gx += gridSize) {
-        for (let gy = 0; gy < h; gy += gridSize) {
+      const step = 36;
+      for (let x = 0; x < w; x += step) {
+        for (let y = 0; y < h; y += step) {
           ctx.beginPath();
-          ctx.arc(gx, gy, 1, 0, Math.PI * 2);
+          ctx.arc(x, y, 0.8, 0, Math.PI * 2);
           ctx.fill();
         }
       }
-      ctx.restore();
 
-      // Ambient moving cosmic particles
-      ctx.save();
+      // Ambient moving cosmic dust
       s.particles.forEach(p => {
         p.y -= p.speed;
         if (p.y < 0) p.y = h;
@@ -188,186 +242,234 @@ export default function NetworkDiagramView({
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fill();
       });
-      ctx.restore();
 
-      // Apply zoom & pan transformation
+      // Apply Pan & Zoom Transformation
       ctx.translate(t.x, t.y);
       ctx.scale(t.k, t.k);
 
-      // --- Physics Simulation Step ---
+      // --- OBSIDIAN FORCE PHYSICS SIMULATION ---
       const nodes = s.nodes;
       const links = s.links;
 
-      // Center force for center node
-      const centerNode = nodes.find(n => n.isCenter);
-      if (centerNode && s.dragNode !== centerNode) {
-        centerNode.x += (w / 2 - centerNode.x) * 0.05;
-        centerNode.y += (h / 2 - centerNode.y) * 0.05;
-      }
+      // 1. Center Gravity: Pull nodes gently toward center of the screen
+      const cx = w / 2;
+      const cy = h / 2;
+      nodes.forEach(node => {
+        if (s.dragNode !== node) {
+          const dx = cx - node.x;
+          const dy = cy - node.y;
+          node.vx += dx * 0.0006;
+          node.vy += dy * 0.0006;
+        }
+      });
 
-      // Repulsion between all nodes
+      // 2. Many-Body Coulomb Repulsion: Nodes push away from each other so they never clump
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const a = nodes[i];
           const b = nodes[j];
           const dx = b.x - a.x;
           const dy = b.y - a.y;
-          const dist = Math.sqrt(dx * dy + dy * dy) || 1;
-          const minDist = a.radius + b.radius + 40;
+          const distSq = dx * dx + dy * dy || 1;
+          const dist = Math.sqrt(distSq);
+          const minDist = a.radius + b.radius + 35;
 
           if (dist < minDist) {
-            const force = ((minDist - dist) / dist) * 0.15;
-            if (s.dragNode !== a && !a.isCenter) {
-              a.x -= dx * force;
-              a.y -= dy * force;
+            const overlap = (minDist - dist) / dist;
+            const force = overlap * 0.35;
+            if (s.dragNode !== a) {
+              a.vx -= dx * force;
+              a.vy -= dy * force;
             }
-            if (s.dragNode !== b && !b.isCenter) {
-              b.x += dx * force;
-              b.y += dy * force;
+            if (s.dragNode !== b) {
+              b.vx += dx * force;
+              b.vy += dy * force;
+            }
+          } else if (dist < 260) {
+            const repulse = 180 / distSq;
+            if (s.dragNode !== a) {
+              a.vx -= (dx / dist) * repulse;
+              a.vy -= (dy / dist) * repulse;
+            }
+            if (s.dragNode !== b) {
+              b.vx += (dx / dist) * repulse;
+              b.vy += (dy / dist) * repulse;
             }
           }
         }
       }
 
-      // Link attraction forces
+      // 3. Hooke Spring Attraction along Links
       links.forEach(link => {
         const a = link.source;
         const b = link.target;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const desired = link.distance;
-        const diff = (dist - desired) / dist;
+        const diff = (dist - link.distance) / dist;
         const force = diff * link.strength;
 
-        if (s.dragNode !== a && !a.isCenter) {
-          a.x += dx * force * 0.5;
-          a.y += dy * force * 0.5;
+        if (s.dragNode !== a) {
+          a.vx += dx * force;
+          a.vy += dy * force;
         }
-        if (s.dragNode !== b && !b.isCenter) {
-          b.x -= dx * force * 0.5;
-          b.y -= dy * force * 0.5;
+        if (s.dragNode !== b) {
+          b.vx -= dx * force;
+          b.vy -= dy * force;
         }
       });
 
-      // Keep nodes comfortably inside viewing bounds
+      // 4. Update Node Positions with Damping (Friction)
       nodes.forEach(node => {
         if (s.dragNode !== node) {
+          node.vx *= 0.84; // velocity damping
+          node.vy *= 0.84;
+          node.x += node.vx;
+          node.y += node.vy;
+
+          // Boundary constraints to keep nodes on screen
           const pad = 40;
-          if (node.x < pad) node.x += (pad - node.x) * 0.1;
-          if (node.x > w - pad) node.x += (w - pad - node.x) * 0.1;
-          if (node.y < pad) node.y += (pad - node.y) * 0.1;
-          if (node.y > h - pad) node.y += (h - pad - node.y) * 0.1;
+          if (node.x < pad) { node.x = pad; node.vx = 0; }
+          if (node.x > w - pad) { node.x = w - pad; node.vx = 0; }
+          if (node.y < pad) { node.y = pad; node.vy = 0; }
+          if (node.y > h - pad) { node.y = h - pad; node.vy = 0; }
         }
       });
 
-      // --- Draw Links / Filaments ---
+      // Active focus detection (Obsidian highlight feature)
+      const activeHighlightNode = hoveredNode || selectedNode;
+      const connectedNodeIds = new Set();
+      if (activeHighlightNode) {
+        connectedNodeIds.add(activeHighlightNode.id);
+        links.forEach(l => {
+          if (l.source.id === activeHighlightNode.id) connectedNodeIds.add(l.target.id);
+          if (l.target.id === activeHighlightNode.id) connectedNodeIds.add(l.source.id);
+        });
+      }
+
+      // Filter query matching
+      const hasFilter = searchFilter.trim().length > 0;
+      const filterLower = searchFilter.toLowerCase();
+
+      // --- DRAW CONNECTING FILAMENTS (LINKS) ---
       links.forEach(link => {
         const a = link.source;
         const b = link.target;
+
+        const isLinkConnected = activeHighlightNode &&
+          (connectedNodeIds.has(a.id) && connectedNodeIds.has(b.id));
 
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
 
-        if (link.isRing) {
-          // Subtle dash ring between siblings
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-          ctx.lineWidth = 1;
-          ctx.setLineDash([4, 6]);
-        } else {
-          // Glowing synaptic beam from center
-          ctx.setLineDash([]);
-          const linkGrad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-          linkGrad.addColorStop(0, `${subject.color || '#38bdf8'}88`);
-          linkGrad.addColorStop(1, 'rgba(99, 102, 241, 0.2)');
-          ctx.strokeStyle = linkGrad;
-          ctx.lineWidth = 2;
-        }
-        ctx.stroke();
-        ctx.setLineDash([]);
+        if (isLinkConnected) {
+          // Highlighted link
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2.2;
+          ctx.stroke();
 
-        // Small traveling energy particle along each link
-        if (!link.isRing) {
-          const tPos = ((pulseTime * 0.5 + a.x + b.x) % 10) / 10;
+          // Traveling energy photon along the filament
+          const tPos = ((time * 0.7 + a.x + b.x) % 10) / 10;
           const px = a.x + (b.x - a.x) * tPos;
           const py = a.y + (b.y - a.y) * tPos;
-          ctx.fillStyle = subject.color || '#38bdf8';
+          ctx.fillStyle = '#ffffff';
           ctx.beginPath();
-          ctx.arc(px, py, 2, 0, Math.PI * 2);
+          ctx.arc(px, py, 2.5, 0, Math.PI * 2);
           ctx.fill();
+        } else if (link.isInterSubject) {
+          // Inter-subject dashed connection
+          ctx.setLineDash([4, 6]);
+          ctx.strokeStyle = activeHighlightNode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.12)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.setLineDash([]);
+        } else {
+          // Normal delicate Obsidian filament
+          const alpha = activeHighlightNode ? 0.06 : 0.22;
+          ctx.strokeStyle = `rgba(148, 163, 184, ${alpha})`;
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
         }
       });
 
-      // --- Draw Nodes / Orbs ---
+      // --- DRAW NODES / ORBS ---
       nodes.forEach(node => {
-        const isHovered = hoveredNode && hoveredNode.id === node.id;
-        const isDragged = s.dragNode && s.dragNode.id === node.id;
+        const isHovered = activeHighlightNode && activeHighlightNode.id === node.id;
+        const isConnected = activeHighlightNode && connectedNodeIds.has(node.id);
+        const matchesFilter = hasFilter && node.label.toLowerCase().includes(filterLower);
 
-        if (node.isCenter) {
-          // Draw Main Subject Hub Orb
-          const pulse = Math.sin(pulseTime) * 3;
-          const r = node.radius + pulse;
+        // Opacity dimming if another node is focused
+        let nodeAlpha = 1;
+        if (activeHighlightNode && !isConnected) {
+          nodeAlpha = 0.2;
+        }
+        if (hasFilter && !matchesFilter && !node.isHub) {
+          nodeAlpha = 0.15;
+        }
 
-          // Outer pulsing aura
-          const aura = ctx.createRadialGradient(node.x, node.y, r * 0.4, node.x, node.y, r * 2.2);
-          aura.addColorStop(0, `${node.color}55`);
-          aura.addColorStop(0.7, `${node.color}15`);
-          aura.addColorStop(1, 'rgba(0, 0, 0, 0)');
-          ctx.fillStyle = aura;
+        ctx.save();
+        ctx.globalAlpha = nodeAlpha;
+
+        if (node.isHub) {
+          // Subject Hub Orb (Planetary Core)
+          const pulse = Math.sin(time * 1.5) * 2;
+          const r = node.radius + (isHovered ? 4 : 0) + pulse;
+
+          // Outer glowing aura
+          const auraGrad = ctx.createRadialGradient(node.x, node.y, r * 0.3, node.x, node.y, r * 2.2);
+          auraGrad.addColorStop(0, `${node.color}66`);
+          auraGrad.addColorStop(0.7, `${node.color}15`);
+          auraGrad.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = auraGrad;
           ctx.beginPath();
           ctx.arc(node.x, node.y, r * 2.2, 0, Math.PI * 2);
           ctx.fill();
 
-          // Core Sphere
-          const coreGrad = ctx.createRadialGradient(
-            node.x - r * 0.3,
-            node.y - r * 0.3,
+          // Hub Sphere
+          const hubGrad = ctx.createRadialGradient(
+            node.x - r * 0.35,
+            node.y - r * 0.35,
             r * 0.1,
             node.x,
             node.y,
             r
           );
-          coreGrad.addColorStop(0, '#ffffff');
-          coreGrad.addColorStop(0.3, node.color);
-          coreGrad.addColorStop(1, '#0f172a');
+          hubGrad.addColorStop(0, '#ffffff');
+          hubGrad.addColorStop(0.35, node.color);
+          hubGrad.addColorStop(1, '#090d16');
 
-          ctx.fillStyle = coreGrad;
+          ctx.fillStyle = hubGrad;
           ctx.beginPath();
           ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
           ctx.fill();
 
-          // Border ring
-          ctx.strokeStyle = '#ffffffaa';
-          ctx.lineWidth = 2;
+          // Rim
+          ctx.strokeStyle = isHovered ? '#ffffff' : `${node.color}aa`;
+          ctx.lineWidth = isHovered ? 2.5 : 1.5;
           ctx.stroke();
 
-          // Center Label Text
+          // Hub Label Inside Orb
           ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 15px Outfit, sans-serif';
+          ctx.font = 'bold 12px Outfit, sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(node.label, node.x, node.y - 6);
-
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-          ctx.font = '500 11px Outfit, sans-serif';
-          ctx.fillText(node.sublabel, node.x, node.y + 12);
+          ctx.fillText(node.label, node.x, node.y);
 
         } else {
-          // Draw Snippet Code Orb
-          const r = isHovered || isDragged ? node.radius + 4 : node.radius;
+          // Snippet Code Orb (Satellite Node)
+          const r = isHovered ? node.radius + 3 : node.radius;
 
-          // Outer Glow
-          const orbGlow = ctx.createRadialGradient(node.x, node.y, r * 0.3, node.x, node.y, r * 1.8);
-          orbGlow.addColorStop(0, `${node.color}66`);
-          orbGlow.addColorStop(0.8, `${node.color}11`);
-          orbGlow.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = orbGlow;
+          // Glowing Aura
+          const glowGrad = ctx.createRadialGradient(node.x, node.y, r * 0.2, node.x, node.y, r * 1.8);
+          glowGrad.addColorStop(0, `${node.color}55`);
+          glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = glowGrad;
           ctx.beginPath();
           ctx.arc(node.x, node.y, r * 1.8, 0, Math.PI * 2);
           ctx.fill();
 
-          // Orb body gradient
+          // Orb body
           const orbGrad = ctx.createRadialGradient(
             node.x - r * 0.3,
             node.y - r * 0.3,
@@ -378,62 +480,51 @@ export default function NetworkDiagramView({
           );
           orbGrad.addColorStop(0, '#ffffff');
           orbGrad.addColorStop(0.35, node.color);
-          orbGrad.addColorStop(0.9, '#1e1b4b');
-          orbGrad.addColorStop(1, '#090d16');
+          orbGrad.addColorStop(1, '#0b0f19');
 
           ctx.fillStyle = orbGrad;
           ctx.beginPath();
           ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
           ctx.fill();
 
-          // Orb Rim
-          ctx.strokeStyle = isHovered ? '#38bdf8' : 'rgba(255, 255, 255, 0.4)';
-          ctx.lineWidth = isHovered ? 2.5 : 1.5;
+          // Rim
+          ctx.strokeStyle = isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.35)';
+          ctx.lineWidth = isHovered ? 2 : 1;
           ctx.stroke();
 
-          // Serial Number Badge inside the Orb
+          // Serial Number Badge Inside Orb
           ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 13px "JetBrains Mono", monospace';
+          ctx.font = 'bold 9px "JetBrains Mono", monospace';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(`#${node.serialNumber}`, node.x, node.y);
 
-          // Language dot on orb top-right
-          ctx.fillStyle = '#10b981';
-          ctx.beginPath();
-          ctx.arc(node.x + r * 0.65, node.y - r * 0.65, 4, 0, Math.PI * 2);
-          ctx.fill();
+          // Title Tag Label (Obsidian Floating Label)
+          const title = node.label.length > 20 ? node.label.slice(0, 18) + '…' : node.label;
+          ctx.font = '500 11px Outfit, sans-serif';
+          const textW = ctx.measureText(title).width;
+          const labelY = node.y + r + 13;
 
-          // Title Label Below Orb
-          const title = node.label.length > 18 ? node.label.slice(0, 16) + '...' : node.label;
-          ctx.font = '600 12px Outfit, sans-serif';
-          const textWidth = ctx.measureText(title).width;
-          const badgePadX = 8;
-          const badgePadY = 4;
-          const labelY = node.y + r + 14;
-
-          // Pill background for title
-          ctx.fillStyle = isHovered ? 'rgba(30, 41, 59, 0.95)' : 'rgba(15, 23, 42, 0.85)';
-          ctx.strokeStyle = isHovered ? `${node.color}cc` : 'rgba(255, 255, 255, 0.15)';
+          // Label pill background
+          ctx.fillStyle = isHovered ? 'rgba(15, 23, 42, 0.95)' : 'rgba(10, 14, 26, 0.75)';
+          ctx.strokeStyle = isHovered ? node.color : 'rgba(255, 255, 255, 0.1)';
           ctx.lineWidth = 1;
 
-          const pillX = node.x - textWidth / 2 - badgePadX;
-          const pillY = labelY - 10;
-          const pillW = textWidth + badgePadX * 2;
-          const pillH = 20;
-          const pillR = 10;
-
+          const px = node.x - textW / 2 - 6;
+          const py = labelY - 8;
+          const pw = textW + 12;
+          const ph = 16;
           ctx.beginPath();
-          ctx.roundRect(pillX, pillY, pillW, pillH, pillR);
+          ctx.roundRect(px, py, pw, ph, 8);
           ctx.fill();
           ctx.stroke();
 
-          // Title text
-          ctx.fillStyle = isHovered ? '#ffffff' : '#e2e8f0';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
+          // Label text
+          ctx.fillStyle = isHovered ? '#ffffff' : '#cbd5e1';
           ctx.fillText(title, node.x, labelY);
         }
+
+        ctx.restore();
       });
 
       ctx.restore();
@@ -444,11 +535,11 @@ export default function NetworkDiagramView({
 
     return () => {
       cancelAnimationFrame(animationFrameId);
-      window.removeEventListener('resize', updateDimensions);
+      ro.disconnect();
     };
-  }, [subject, hoveredNode]);
+  }, [hoveredNode, selectedNode, searchFilter]);
 
-  // Screen to Canvas Coordinates converter
+  // Coordinate Converters
   const getCanvasCoords = useCallback((clientX, clientY) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -457,20 +548,18 @@ export default function NetworkDiagramView({
     const screenX = clientX - rect.left;
     const screenY = clientY - rect.top;
 
-    // Apply inverse transform
     const x = (screenX - s.transform.x) / s.transform.k;
     const y = (screenY - s.transform.y) / s.transform.k;
     return { x, y, screenX, screenY };
   }, []);
 
-  // Find node under pointer
   const findNodeAt = useCallback((x, y) => {
     const s = stateRef.current;
     for (let i = s.nodes.length - 1; i >= 0; i--) {
       const node = s.nodes[i];
       const dx = node.x - x;
       const dy = node.y - y;
-      const hitRadius = node.radius + 15; // Generous tap target for mobile thumbs
+      const hitRadius = node.radius + 18; // Generous tap target for mobile touch
       if (dx * dx + dy * dy <= hitRadius * hitRadius) {
         return node;
       }
@@ -478,7 +567,7 @@ export default function NetworkDiagramView({
     return null;
   }, []);
 
-  // Pointer / Mouse / Touch Handlers
+  // Pointer & Touch Handlers
   const handlePointerDown = (e) => {
     const s = stateRef.current;
     const { x, y, screenX, screenY } = getCanvasCoords(e.clientX, e.clientY);
@@ -492,7 +581,6 @@ export default function NetworkDiagramView({
       s.isDragging = true;
       s.dragStart = { x: screenX, y: screenY };
     } else {
-      // Pan canvas
       s.isDragging = true;
       s.dragStart = { x: screenX - s.transform.x, y: screenY - s.transform.y };
     }
@@ -502,27 +590,23 @@ export default function NetworkDiagramView({
     const s = stateRef.current;
     const { x, y, screenX, screenY } = getCanvasCoords(e.clientX, e.clientY);
 
-    // Hover state detection
     const node = findNodeAt(x, y);
-    if (node && !node.isCenter) {
-      setHoveredNode(node);
-    } else {
-      setHoveredNode(null);
-    }
+    setHoveredNode(node);
 
     if (!s.isDragging) return;
 
-    const moveDist = Math.hypot(screenX - (s.dragStart.x + (s.dragNode ? 0 : s.transform.x)), screenY - (s.dragStart.y + (s.dragNode ? 0 : s.transform.y)));
-    if (moveDist > 5) {
-      s.hasMoved = true;
-    }
+    const dist = Math.hypot(
+      screenX - (s.dragStart.x + (s.dragNode ? 0 : s.transform.x)),
+      screenY - (s.dragStart.y + (s.dragNode ? 0 : s.transform.y))
+    );
+    if (dist > 4) s.hasMoved = true;
 
     if (s.dragNode) {
-      // Move dragged node
       s.dragNode.x = x;
       s.dragNode.y = y;
+      s.dragNode.vx = 0;
+      s.dragNode.vy = 0;
     } else {
-      // Pan whole canvas
       s.transform.x = screenX - s.dragStart.x;
       s.transform.y = screenY - s.dragStart.y;
     }
@@ -532,19 +616,20 @@ export default function NetworkDiagramView({
     const s = stateRef.current;
     const clickDuration = Date.now() - s.touchStartTime;
 
-    // Check if this was a click/tap rather than a pan/drag
-    if (!s.hasMoved && clickDuration < 450) {
+    if (!s.hasMoved && clickDuration < 400) {
       const { x, y } = getCanvasCoords(e.clientX, e.clientY);
-      const clickedNode = findNodeAt(x, y);
+      const clicked = findNodeAt(x, y);
 
-      if (clickedNode) {
-        if (!clickedNode.isCenter && clickedNode.snippet) {
-          // USER REQUIREMENT: "in one click of orb I get into the code page which I pasted..... have full access"
-          onSelectSnippet(clickedNode.snippet);
-        } else if (clickedNode.isCenter) {
-          // Tapping center resets view
-          resetTransform();
+      if (clicked) {
+        if (!clicked.isHub && clicked.snippet) {
+          // ONE CLICK OF ORB -> OPEN CODE PAGE WITH FULL ACCESS!
+          onSelectSnippet(clicked.snippet);
+        } else {
+          // Tapping a hub focuses / toggles selection
+          setSelectedNode(selectedNode?.id === clicked.id ? null : clicked);
         }
+      } else {
+        setSelectedNode(null);
       }
     }
 
@@ -553,19 +638,31 @@ export default function NetworkDiagramView({
     s.hasMoved = false;
   };
 
-  // Touch zoom gesture support (pinch-to-zoom on phone)
+  // Wheel zoom
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const s = stateRef.current;
+    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.88;
+    const newK = Math.min(Math.max(s.transform.k * zoomFactor, 0.4), 3.0);
+
+    const { screenX, screenY } = getCanvasCoords(e.clientX, e.clientY);
+    s.transform.x = screenX - (screenX - s.transform.x) * (newK / s.transform.k);
+    s.transform.y = screenY - (screenY - s.transform.y) * (newK / s.transform.k);
+    s.transform.k = newK;
+  };
+
+  // Pinch-to-zoom for mobile
   const handleTouchMove = (e) => {
     if (e.touches.length === 2) {
-      const touch1 = e.touches[0];
-      const touch2 = e.touches[1];
-      const dist = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
       const s = stateRef.current;
 
       if (s.lastTouchDistance) {
         const delta = dist / s.lastTouchDistance;
-        const newZoom = Math.min(Math.max(s.transform.k * delta, 0.5), 2.5);
+        const newZoom = Math.min(Math.max(s.transform.k * delta, 0.4), 3.0);
         s.transform.k = newZoom;
-        setZoomLevel(newZoom);
       }
       s.lastTouchDistance = dist;
     }
@@ -575,45 +672,41 @@ export default function NetworkDiagramView({
     stateRef.current.lastTouchDistance = null;
   };
 
-  // Zoom buttons
   const zoomIn = () => {
     const s = stateRef.current;
-    const newZoom = Math.min(s.transform.k * 1.25, 2.5);
-    s.transform.k = newZoom;
-    setZoomLevel(newZoom);
+    s.transform.k = Math.min(s.transform.k * 1.25, 3.0);
   };
 
   const zoomOut = () => {
     const s = stateRef.current;
-    const newZoom = Math.max(s.transform.k / 1.25, 0.5);
-    s.transform.k = newZoom;
-    setZoomLevel(newZoom);
+    s.transform.k = Math.max(s.transform.k / 1.25, 0.4);
   };
 
-  const resetTransform = () => {
+  const resetView = () => {
     const s = stateRef.current;
     s.transform = { x: 0, y: 0, k: 1 };
-    setZoomLevel(1);
+    setSelectedNode(null);
   };
 
   return (
     <div
       ref={containerRef}
-      className={`network-diagram-container ${isFullscreen ? 'fullscreen-mode' : ''}`}
+      className={`obsidian-graph-view ${isFullscreen ? 'fullscreen-mode' : ''}`}
       style={{
         position: 'relative',
         width: '100%',
         height: isFullscreen ? '100vh' : 'calc(100vh - 210px)',
-        minHeight: '440px',
+        minHeight: '480px',
+        backgroundColor: '#080c16',
+        borderRadius: isFullscreen ? '0' : '22px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
         overflow: 'hidden',
-        borderRadius: isFullscreen ? '0' : '20px',
-        background: '#0a0e1a',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
+        boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5)',
         touchAction: 'none'
       }}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onWheel={handleWheel}
     >
       <canvas
         ref={canvasRef}
@@ -628,118 +721,135 @@ export default function NetworkDiagramView({
         }}
       />
 
-      {/* Top Floating Info / Quick Helper HUD */}
+      {/* Top Obsidian Controls HUD Bar */}
       <div
         style={{
           position: 'absolute',
-          top: '14px',
-          left: '14px',
-          right: '14px',
+          top: '12px',
+          left: '12px',
+          right: '12px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          gap: '8px',
+          flexWrap: 'wrap',
           pointerEvents: 'none',
           zIndex: 10
         }}
       >
+        {/* Left: Mode Switcher (Obsidian Global vs Current Subject) */}
         <div
           style={{
-            background: 'rgba(15, 23, 42, 0.75)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '999px',
-            padding: '6px 14px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '12px',
-            color: '#e2e8f0',
-            fontWeight: 500,
-            pointerEvents: 'auto',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-          }}
-        >
-          <span
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: subject.color || '#38bdf8',
-              boxShadow: `0 0 10px ${subject.color || '#38bdf8'}`
-            }}
-          />
-          <span>Interactive Neural Orb Diagram</span>
-          <span style={{ opacity: 0.5 }}>•</span>
-          <span style={{ color: '#94a3b8' }}>Tap orb for full code</span>
-        </div>
-      </div>
-
-      {/* Empty State Prompt if no snippets */}
-      {snippets.length === 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            textAlign: 'center',
-            padding: '24px',
-            maxWidth: '320px',
+            display: 'flex',
             background: 'rgba(15, 23, 42, 0.85)',
             backdropFilter: 'blur(16px)',
-            borderRadius: '20px',
             border: '1px solid rgba(255, 255, 255, 0.12)',
-            zIndex: 15
+            borderRadius: '999px',
+            padding: '3px',
+            pointerEvents: 'auto',
+            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.4)'
+          }}
+        >
+          <button
+            onClick={() => setGraphMode('global')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '999px',
+              border: 'none',
+              background: graphMode === 'global' ? 'linear-gradient(135deg, #a855f7, #6366f1)' : 'transparent',
+              color: graphMode === 'global' ? '#ffffff' : '#94a3b8',
+              fontWeight: 700,
+              fontSize: '12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Sparkles size={13} />
+            <span>Vault Graph (Obsidian)</span>
+          </button>
+
+          <button
+            onClick={() => setGraphMode('subject')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '999px',
+              border: 'none',
+              background: graphMode === 'subject' ? `${subject.color || '#38bdf8'}33` : 'transparent',
+              color: graphMode === 'subject' ? (subject.color || '#38bdf8') : '#94a3b8',
+              fontWeight: 700,
+              fontSize: '12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Filter size={13} />
+            <span>{subject.name} Only</span>
+          </button>
+        </div>
+
+        {/* Right: Search In Graph + Node Count Pill */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            pointerEvents: 'auto'
           }}
         >
           <div
             style={{
-              width: '60px',
-              height: '60px',
-              borderRadius: '50%',
-              background: `${subject.color || '#38bdf8'}22`,
-              color: subject.color || '#38bdf8',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 14px auto',
-              border: `1px solid ${subject.color || '#38bdf8'}44`
-            }}
-          >
-            <Sparkles size={28} />
-          </div>
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', color: '#f8fafc' }}>
-            No Code Orbs Yet
-          </h3>
-          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#94a3b8', lineHeight: 1.5 }}>
-            Store your first {subject.name} algorithm or code snippet to start orbiting this network.
-          </p>
-          <button
-            onClick={onAddNewSnippet}
-            style={{
-              width: '100%',
-              padding: '12px 18px',
-              background: `linear-gradient(135deg, ${subject.color || '#38bdf8'}, #6366f1)`,
-              border: 'none',
+              background: 'rgba(15, 23, 42, 0.85)',
+              backdropFilter: 'blur(16px)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
               borderRadius: '12px',
-              color: '#ffffff',
-              fontWeight: 600,
-              fontSize: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.3)'
+              padding: '4px 10px',
+              gap: '6px'
             }}
           >
-            <Plus size={18} />
-            Add First Code Snippet
-          </button>
-        </div>
-      )}
+            <Search size={14} color="#94a3b8" />
+            <input
+              type="text"
+              placeholder="Filter graph nodes..."
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#f8fafc',
+                fontSize: '12px',
+                outline: 'none',
+                width: '120px'
+              }}
+            />
+          </div>
 
-      {/* Floating Canvas Controls (Mobile-Friendly Pill) */}
+          <div
+            style={{
+              background: 'rgba(15, 23, 42, 0.85)',
+              backdropFilter: 'blur(16px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '6px 12px',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: '#94a3b8',
+              fontFamily: '"JetBrains Mono", monospace'
+            }}
+          >
+            {stats.nodes} Nodes • {stats.links} Links
+          </div>
+        </div>
+      </div>
+
+      {/* Floating Canvas Controls */}
       <div
         style={{
           position: 'absolute',
@@ -747,7 +857,7 @@ export default function NetworkDiagramView({
           right: '16px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px',
+          gap: '6px',
           zIndex: 10
         }}
       >
@@ -761,7 +871,7 @@ export default function NetworkDiagramView({
             display: 'flex',
             flexDirection: 'column',
             gap: '4px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)'
           }}
         >
           <button
@@ -769,8 +879,8 @@ export default function NetworkDiagramView({
             title="Zoom In"
             aria-label="Zoom In"
             style={{
-              width: '38px',
-              height: '38px',
+              width: '36px',
+              height: '36px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -788,8 +898,8 @@ export default function NetworkDiagramView({
             title="Zoom Out"
             aria-label="Zoom Out"
             style={{
-              width: '38px',
-              height: '38px',
+              width: '36px',
+              height: '36px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -803,12 +913,12 @@ export default function NetworkDiagramView({
             <ZoomOut size={18} />
           </button>
           <button
-            onClick={resetTransform}
-            title="Recenter View"
-            aria-label="Recenter View"
+            onClick={resetView}
+            title="Recenter Graph"
+            aria-label="Recenter Graph"
             style={{
-              width: '38px',
-              height: '38px',
+              width: '36px',
+              height: '36px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -819,78 +929,97 @@ export default function NetworkDiagramView({
               cursor: 'pointer'
             }}
           >
-            <RefreshCw size={17} />
+            <RefreshCw size={16} />
+          </button>
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen Graph'}
+            aria-label="Toggle Fullscreen Graph"
+            style={{
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '10px',
+              color: '#e2e8f0',
+              cursor: 'pointer'
+            }}
+          >
+            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
           </button>
         </div>
       </div>
 
-      {/* Floating Add Snippet Button inside Canvas HUD */}
-      {snippets.length > 0 && (
-        <button
-          onClick={onAddNewSnippet}
-          style={{
-            position: 'absolute',
-            bottom: '16px',
-            left: '16px',
-            background: `linear-gradient(135deg, ${subject.color || '#38bdf8'}, #6366f1)`,
-            border: 'none',
-            borderRadius: '999px',
-            padding: '10px 18px',
-            color: '#ffffff',
-            fontWeight: 600,
-            fontSize: '13px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            boxShadow: `0 4px 18px ${subject.color || '#38bdf8'}66`,
-            zIndex: 10
-          }}
-        >
-          <Plus size={16} />
-          <span>Add Code Orb</span>
-        </button>
-      )}
+      {/* Floating Bottom Left: Add Snippet */}
+      <button
+        onClick={onAddNewSnippet}
+        style={{
+          position: 'absolute',
+          bottom: '16px',
+          left: '16px',
+          background: 'linear-gradient(135deg, #38bdf8, #6366f1)',
+          border: 'none',
+          borderRadius: '999px',
+          padding: '10px 18px',
+          color: '#ffffff',
+          fontWeight: 600,
+          fontSize: '13px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          cursor: 'pointer',
+          boxShadow: '0 4px 18px rgba(56, 189, 248, 0.4)',
+          zIndex: 10
+        }}
+      >
+        <Plus size={16} />
+        <span>Add Code Orb</span>
+      </button>
 
-      {/* Hover preview tooltip */}
+      {/* Hover Information Tooltip */}
       {hoveredNode && (
         <div
           style={{
             position: 'absolute',
-            bottom: '68px',
+            bottom: '70px',
             left: '50%',
             transform: 'translateX(-50%)',
             background: 'rgba(15, 23, 42, 0.95)',
             backdropFilter: 'blur(16px)',
-            border: `1px solid ${subject.color || '#38bdf8'}66`,
-            borderRadius: '12px',
-            padding: '8px 16px',
+            border: `1.5px solid ${hoveredNode.color || '#38bdf8'}`,
+            borderRadius: '14px',
+            padding: '10px 18px',
             display: 'flex',
             alignItems: 'center',
-            gap: '10px',
+            gap: '12px',
             color: '#f8fafc',
-            fontSize: '12px',
+            fontSize: '13px',
             pointerEvents: 'none',
             zIndex: 20,
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.6)'
+            boxShadow: '0 12px 36px rgba(0, 0, 0, 0.7)'
           }}
         >
           <span
             style={{
-              padding: '2px 8px',
+              padding: '3px 8px',
               borderRadius: '6px',
-              background: `${subject.color || '#38bdf8'}22`,
-              color: subject.color || '#38bdf8',
+              background: `${hoveredNode.color || '#38bdf8'}22`,
+              color: hoveredNode.color || '#38bdf8',
               fontWeight: 700,
               fontFamily: '"JetBrains Mono", monospace'
             }}
           >
-            #{hoveredNode.serialNumber}
+            {hoveredNode.isHub ? 'SUBJECT' : `#${hoveredNode.serialNumber}`}
           </span>
           <span style={{ fontWeight: 600 }}>{hoveredNode.label}</span>
-          <span style={{ color: '#38bdf8', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-            <Code2 size={12} /> Tap to Open
-          </span>
+          {!hoveredNode.isHub && (
+            <span style={{ color: '#38bdf8', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Code2 size={13} /> Click to Open Full Code
+            </span>
+          )}
         </div>
       )}
     </div>
