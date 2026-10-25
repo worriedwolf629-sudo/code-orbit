@@ -1,0 +1,81 @@
+/* === CodeOrbit App Stylesheet === */
+
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  position: relative;
+  max-width: 900px;
+  margin: 0 auto;
+  box-shadow: 0 0 80px rgba(0, 0, 0, 0.6);
+  background-color: #080c16;
+}
+
+.main-content {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+}
+
+/* Serial Card Hover & Touch State */
+.serial-card-item {
+  transform: translateZ(0);
+}
+
+.serial-card-item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.3) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(56, 189, 248, 0.1) !important;
+}
+
+.serial-card-item:active {
+  transform: scale(0.99);
+}
+
+/* Modals */
+.modal-overlay {
+  animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.modal-content {
+  animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Floating Action Button (FAB) */
+.mobile-fab:hover {
+  transform: scale(1.08);
+}
+
+.mobile-fab:active {
+  transform: scale(0.92);
+}
+
+/* Subject pills bar smooth horizontal scrolling */
+.subject-pills-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Responsive Utilities */
+@media (max-width: 480px) {
+  .main-content {
+    padding: 12px;
+  }
+
+  .hide-on-small-mobile {
+    display: none !important;
+  }
+
+  .modal-content {
+    border-radius: 20px !important;
+  }
+}
+
+@media (min-width: 900px) {
+  .app-layout {
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+}
