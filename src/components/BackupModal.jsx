@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { X, Download, Upload, RotateCcw, ShieldCheck, FileJson } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { X, Download, Upload, RotateCcw } from 'lucide-react';
 
 export default function BackupModal({
   onClose,
@@ -10,6 +10,15 @@ export default function BackupModal({
   onShowToast
 }) {
   const fileInputRef = useRef(null);
+
+  // Close on Escape
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const handleExport = () => {
     const data = {
@@ -30,7 +39,7 @@ export default function BackupModal({
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    onShowToast('Vault backup downloaded!');
+    onShowToast('Vault backup downloaded');
   };
 
   const handleFileChange = (e) => {
@@ -43,13 +52,13 @@ export default function BackupModal({
         const json = JSON.parse(event.target.result);
         if (Array.isArray(json.subjects) && Array.isArray(json.snippets)) {
           onImportData(json.subjects, json.snippets);
-          onShowToast('Vault restored successfully!');
+          onShowToast('Vault restored');
           onClose();
         } else {
-          alert('Invalid backup file format. Expected subjects and snippets arrays.');
+          alert('Invalid backup file. Missing subjects or snippets.');
         }
       } catch (err) {
-        alert('Failed to parse backup JSON file: ' + err.message);
+        alert('Failed to parse backup JSON: ' + err.message);
       }
     };
     reader.readAsText(file);
@@ -61,17 +70,13 @@ export default function BackupModal({
       onClick={onClose}
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(5, 8, 15, 0.85)',
-        backdropFilter: 'blur(16px)',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
         zIndex: 100,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '12px'
+        padding: '16px'
       }}
     >
       <div
@@ -80,159 +85,196 @@ export default function BackupModal({
         style={{
           width: '100%',
           maxWidth: '480px',
-          backgroundColor: '#0c1220',
-          borderRadius: '24px',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          backgroundColor: 'var(--bg-surface)',
+          borderRadius: 'var(--radius-l)',
+          border: '1px solid var(--border)',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8)',
           overflow: 'hidden'
         }}
       >
         {/* Header */}
         <div
           style={{
-            padding: '16px 20px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '14px 18px',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(15, 23, 42, 0.6)'
+            background: 'var(--bg-base)'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
+          <div>
+            <h3
               style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: 'rgba(56, 189, 248, 0.15)',
-                color: '#38bdf8',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
+                margin: 0,
+                fontSize: '15px',
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                letterSpacing: '-0.02em'
               }}
             >
-              <FileJson size={20} />
-            </div>
-            <h3 style={{ margin: 0, fontSize: '17px', color: '#ffffff', fontWeight: 700 }}>
-              Backup & Sync Vault
+              Vault Backup & Sync
             </h3>
+            <p
+              style={{
+                margin: '2px 0 0 0',
+                fontSize: '12px',
+                color: 'var(--text-dim)'
+              }}
+            >
+              Export, import, or reset your code vault
+            </p>
           </div>
-
           <button
             onClick={onClose}
             aria-label="Close"
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '10px',
-              width: '34px',
-              height: '34px',
-              color: '#cbd5e1',
+              background: 'transparent',
+              color: 'var(--text-dim)',
+              padding: '6px',
+              borderRadius: 'var(--radius-s)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
+              justifyContent: 'center'
             }}
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Content */}
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', lineHeight: 1.5 }}>
-            Export your subjects and code snippets to take them anywhere, backup your notes, or transfer them to another phone or computer.
-          </p>
-
-          {/* Export Button */}
-          <button
-            onClick={handleExport}
+        <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {/* Export */}
+          <div
             style={{
-              padding: '14px 18px',
-              background: 'rgba(56, 189, 248, 0.1)',
-              border: '1px solid rgba(56, 189, 248, 0.3)',
-              borderRadius: '14px',
-              color: '#38bdf8',
-              fontWeight: 600,
-              fontSize: '14px',
+              padding: '12px 14px',
+              background: 'var(--bg-base)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-m)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer'
+              justifyContent: 'space-between'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Download size={18} />
-              <div style={{ textAlign: 'left' }}>
-                <div>Export Backup JSON</div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>{subjects.length} subjects • {snippets.length} snippets</div>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Export Vault JSON
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                {subjects.length} subjects · {snippets.length} snippets
               </div>
             </div>
-            <span>Download</span>
-          </button>
+            <button
+              onClick={handleExport}
+              style={{
+                background: 'var(--bg-raised)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-s)',
+                padding: '6px 12px',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Download size={13} />
+              <span>Export</span>
+            </button>
+          </div>
 
-          {/* Import Button */}
-          <button
-            onClick={() => fileInputRef.current && fileInputRef.current.click()}
+          {/* Import */}
+          <div
             style={{
-              padding: '14px 18px',
-              background: 'rgba(168, 85, 247, 0.1)',
-              border: '1px solid rgba(168, 85, 247, 0.3)',
-              borderRadius: '14px',
-              color: '#c084fc',
-              fontWeight: 600,
-              fontSize: '14px',
+              padding: '12px 14px',
+              background: 'var(--bg-base)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-m)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer'
+              justifyContent: 'space-between'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Upload size={18} />
-              <div style={{ textAlign: 'left' }}>
-                <div>Import Backup JSON</div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Restore from another device</div>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Import Backup
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                Restore snippets from a JSON file
               </div>
             </div>
-            <span>Select File</span>
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".json"
-            style={{ display: 'none' }}
-          />
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".json"
+              style={{ display: 'none' }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                background: 'var(--bg-raised)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-s)',
+                padding: '6px 12px',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Upload size={13} />
+              <span>Import</span>
+            </button>
+          </div>
 
-          {/* Reset to Default Starter Data */}
-          <button
-            onClick={() => {
-              if (confirm('Reset all subjects & code snippets to default DSA, OOPs & Java samples?')) {
-                onResetToDefaults();
-                onShowToast('Reset to default samples!');
-                onClose();
-              }
-            }}
+          {/* Reset */}
+          <div
             style={{
-              padding: '12px 16px',
-              background: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '12px',
-              color: '#94a3b8',
-              fontSize: '13px',
+              padding: '12px 14px',
+              background: 'var(--bg-base)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-m)',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              justifyContent: 'center',
-              cursor: 'pointer'
+              justifyContent: 'space-between'
             }}
           >
-            <RotateCcw size={15} />
-            <span>Reset to Default Samples</span>
-          </button>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Reset Samples
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                Restore default DSA, OOPs & Java snippets
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                if (window.confirm('Reset all snippets to initial starter samples?')) {
+                  onResetToDefaults();
+                  onClose();
+                }
+              }}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-s)',
+                padding: '6px 12px',
+                color: 'var(--danger)',
+                fontSize: '12px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <RotateCcw size={13} />
+              <span>Reset</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

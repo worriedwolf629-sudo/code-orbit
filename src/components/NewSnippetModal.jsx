@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Code2, Clipboard, Plus, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Clipboard, Check } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../utils/syntaxHighlight';
 
 export default function NewSnippetModal({
@@ -10,24 +10,35 @@ export default function NewSnippetModal({
   onCreateSnippet,
   onShowToast
 }) {
-  const [selectedSubjectId, setSelectedSubjectId] = useState(activeSubjectId || (subjects[0] && subjects[0].id));
+  const [selectedSubjectId, setSelectedSubjectId] = useState(
+    activeSubjectId || (subjects[0] && subjects[0].id)
+  );
   const [title, setTitle] = useState('');
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('java');
   const [notes, setNotes] = useState('');
   const [serialNumber, setSerialNumber] = useState(currentSnippetsCount + 1);
 
+  // Close on Escape
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const handlePasteFromClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
         setCode(text);
-        onShowToast('Pasted code from clipboard!');
+        onShowToast('Pasted from clipboard');
       } else {
         onShowToast('Clipboard is empty');
       }
-    } catch (err) {
-      onShowToast('Please long-press the code box to paste');
+    } catch {
+      onShowToast('Paste directly into the code box');
     }
   };
 
@@ -35,12 +46,12 @@ export default function NewSnippetModal({
     e.preventDefault();
 
     if (!title.trim()) {
-      onShowToast('Please enter a heading/title for this code');
+      onShowToast('Please enter a heading/title');
       return;
     }
 
     if (!code.trim()) {
-      onShowToast('Please paste or enter code below the heading');
+      onShowToast('Please paste or write code');
       return;
     }
 
@@ -56,11 +67,9 @@ export default function NewSnippetModal({
     };
 
     onCreateSnippet(newSnippet);
-    onShowToast(`Saved "${title.trim()}" successfully!`);
+    onShowToast(`Saved "${title.trim()}"`);
     onClose();
   };
-
-  const activeSub = subjects.find(s => s.id === selectedSubjectId) || subjects[0];
 
   return (
     <div
@@ -68,17 +77,13 @@ export default function NewSnippetModal({
       onClick={onClose}
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(5, 8, 15, 0.85)',
-        backdropFilter: 'blur(16px)',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
         zIndex: 100,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '12px'
+        padding: '16px'
       }}
     >
       <div
@@ -86,67 +91,60 @@ export default function NewSnippetModal({
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: '680px',
-          maxHeight: 'calc(100vh - 30px)',
-          backgroundColor: '#0c1220',
-          borderRadius: '24px',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          maxWidth: '620px',
+          maxHeight: 'calc(100vh - 40px)',
+          backgroundColor: 'var(--bg-surface)',
+          borderRadius: 'var(--radius-l)',
+          border: '1px solid var(--border)',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8)',
           overflow: 'hidden'
         }}
       >
         {/* Header */}
         <div
           style={{
-            padding: '16px 20px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '14px 18px',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(15, 23, 42, 0.6)'
+            background: 'var(--bg-base)'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
+          <div>
+            <h3
               style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: `linear-gradient(135deg, ${activeSub?.color || '#38bdf8'}33, #6366f133)`,
-                color: activeSub?.color || '#38bdf8',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
+                margin: 0,
+                fontSize: '15px',
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                letterSpacing: '-0.02em'
               }}
             >
-              <Code2 size={20} />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '17px', color: '#ffffff', fontWeight: 700 }}>
-                Store New Code
-              </h3>
-              <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>
-                Add heading name and paste your code below
-              </p>
-            </div>
+              New Code Snippet
+            </h3>
+            <p
+              style={{
+                margin: '2px 0 0 0',
+                fontSize: '12px',
+                color: 'var(--text-dim)'
+              }}
+            >
+              Add a snippet under a subject with heading and code
+            </p>
           </div>
-
           <button
             onClick={onClose}
             aria-label="Close"
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '10px',
-              width: '34px',
-              height: '34px',
-              color: '#cbd5e1',
+              background: 'transparent',
+              color: 'var(--text-dim)',
+              padding: '6px',
+              borderRadius: 'var(--radius-s)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
+              justifyContent: 'center'
             }}
           >
             <X size={18} />
@@ -157,23 +155,28 @@ export default function NewSnippetModal({
         <form
           onSubmit={handleSubmit}
           style={{
-            flex: 1,
+            padding: '16px 18px',
             overflowY: 'auto',
-            padding: '20px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '16px'
+            gap: '14px'
           }}
         >
-          {/* Row 1: Target Subject & Serial Number */}
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 200px' }}>
+          {/* Subject & Order row */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 90px',
+              gap: '12px'
+            }}
+          >
+            <div>
               <label
                 style={{
                   display: 'block',
                   fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#94a3b8',
+                  fontWeight: 500,
+                  color: 'var(--text-dim)',
                   marginBottom: '6px'
                 }}
               >
@@ -184,65 +187,29 @@ export default function NewSnippetModal({
                 onChange={(e) => setSelectedSubjectId(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '11px 14px',
-                  background: 'rgba(15, 23, 42, 0.8)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: '12px',
-                  color: '#f8fafc',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  outline: 'none'
+                  background: 'var(--bg-base)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-m)',
+                  padding: '9px 12px',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px'
                 }}
               >
-                {subjects.map((s) => (
-                  <option key={s.id} value={s.id} style={{ background: '#0f172a' }}>
-                    {s.name} ({s.description || 'Subject'})
+                {subjects.map((sub) => (
+                  <option key={sub.id} value={sub.id}>
+                    {sub.name}
                   </option>
                 ))}
               </select>
             </div>
 
-            <div style={{ width: '130px' }}>
+            <div>
               <label
                 style={{
                   display: 'block',
                   fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#94a3b8',
-                  marginBottom: '6px'
-                }}
-              >
-                Language
-              </label>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '11px 12px',
-                  background: 'rgba(15, 23, 42, 0.8)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: '12px',
-                  color: '#f8fafc',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              >
-                {SUPPORTED_LANGUAGES.map((l) => (
-                  <option key={l.id} value={l.id} style={{ background: '#0f172a' }}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ width: '90px' }}>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#94a3b8',
+                  fontWeight: 500,
+                  color: 'var(--text-dim)',
                   marginBottom: '6px'
                 }}
               >
@@ -255,185 +222,206 @@ export default function NewSnippetModal({
                 onChange={(e) => setSerialNumber(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '11px 12px',
-                  background: 'rgba(15, 23, 42, 0.8)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: '12px',
-                  color: '#f8fafc',
-                  fontSize: '14px',
-                  fontFamily: '"JetBrains Mono", monospace',
-                  outline: 'none'
+                  background: 'var(--bg-base)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-m)',
+                  padding: '9px 12px',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px',
+                  fontFamily: 'var(--font-mono)'
                 }}
               />
             </div>
           </div>
 
-          {/* Heading Name (USER REQUIREMENT) */}
+          {/* Heading / Title */}
           <div>
             <label
               style={{
                 display: 'block',
                 fontSize: '12px',
-                fontWeight: 600,
-                color: '#94a3b8',
+                fontWeight: 500,
+                color: 'var(--text-dim)',
                 marginBottom: '6px'
               }}
             >
-              Name Heading *
+              Heading / Title
             </label>
             <input
               type="text"
-              required
-              placeholder="e.g., QuickSort Partitioning, BFS Graph, Singleton Pattern"
+              placeholder="e.g. Reverse a Linked List (Iterative & Recursive)"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              autoFocus
               style={{
                 width: '100%',
-                padding: '12px 14px',
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                borderRadius: '12px',
-                color: '#ffffff',
-                fontSize: '15px',
-                fontWeight: 600,
-                outline: 'none'
+                background: 'var(--bg-base)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-m)',
+                padding: '10px 12px',
+                color: 'var(--text-primary)',
+                fontSize: '13px'
               }}
             />
           </div>
 
-          {/* Code Paste Area with Quick Paste Button */}
+          {/* Language and paste button row */}
           <div>
             <div
               style={{
                 display: 'flex',
-                alignItems: 'center',
                 justifyContent: 'space-between',
+                alignItems: 'center',
                 marginBottom: '6px'
               }}
             >
               <label
                 style={{
                   fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#94a3b8'
+                  fontWeight: 500,
+                  color: 'var(--text-dim)'
                 }}
               >
-                Code (Paste below) *
+                Code
               </label>
 
-              <button
-                type="button"
-                onClick={handlePasteFromClipboard}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '4px 10px',
-                  background: 'rgba(56, 189, 248, 0.12)',
-                  border: '1px solid rgba(56, 189, 248, 0.3)',
-                  borderRadius: '8px',
-                  color: '#38bdf8',
-                  fontSize: '12px',
-                  fontWeight: 500,
-                  cursor: 'pointer'
-                }}
-              >
-                <Clipboard size={13} />
-                <span>Paste from Clipboard</span>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  style={{
+                    background: 'var(--bg-base)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-s)',
+                    padding: '4px 8px',
+                    color: 'var(--text-body)',
+                    fontSize: '11px',
+                    fontFamily: 'var(--font-mono)'
+                  }}
+                >
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <option key={lang.id} value={lang.id}>
+                      {lang.name}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handlePasteFromClipboard}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: 'var(--bg-raised)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-s)',
+                    padding: '4px 8px',
+                    color: 'var(--text-body)',
+                    fontSize: '11px'
+                  }}
+                >
+                  <Clipboard size={12} />
+                  <span>Paste</span>
+                </button>
+              </div>
             </div>
 
             <textarea
-              rows={10}
-              required
               placeholder="// Paste your code here..."
               value={code}
               onChange={(e) => setCode(e.target.value)}
+              rows={10}
               style={{
                 width: '100%',
-                padding: '14px',
-                background: '#070a12',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                borderRadius: '12px',
-                color: '#e2e8f0',
-                fontSize: '13px',
-                fontFamily: '"JetBrains Mono", monospace',
-                lineHeight: 1.5,
-                outline: 'none',
-                resize: 'vertical'
+                background: 'var(--code-bg)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-m)',
+                padding: '12px',
+                color: 'var(--text-primary)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '12.5px',
+                lineHeight: '1.5',
+                resize: 'vertical',
+                tabSize: 2
               }}
             />
           </div>
 
-          {/* Notes / Highlights (Optional) */}
+          {/* Key Insights / Notes */}
           <div>
             <label
               style={{
                 display: 'block',
                 fontSize: '12px',
-                fontWeight: 600,
-                color: '#94a3b8',
+                fontWeight: 500,
+                color: 'var(--text-dim)',
                 marginBottom: '6px'
               }}
             >
-              Notes / Complexity / Key Details (Optional)
+              Notes (optional)
             </label>
-            <input
-              type="text"
-              placeholder="e.g., Time: O(N log N), Space: O(log N). Pivot chosen as middle."
+            <textarea
+              placeholder="e.g. Time complexity: O(n), Space complexity: O(1). Remember edge case when head is null."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              rows={2}
               style={{
                 width: '100%',
-                padding: '11px 14px',
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                borderRadius: '12px',
-                color: '#cbd5e1',
-                fontSize: '13px',
-                outline: 'none'
+                background: 'var(--bg-base)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-m)',
+                padding: '8px 12px',
+                color: 'var(--text-primary)',
+                fontSize: '12.5px',
+                lineHeight: '1.4',
+                resize: 'none'
               }}
             />
           </div>
 
-          {/* Bottom Save Action */}
-          <div style={{ marginTop: '8px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+          {/* Action buttons */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              paddingTop: '8px',
+              borderTop: '1px solid var(--border)'
+            }}
+          >
             <button
               type="button"
               onClick={onClose}
               style={{
-                padding: '11px 18px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '12px',
-                color: '#cbd5e1',
-                fontSize: '14px',
-                fontWeight: 600,
-                cursor: 'pointer'
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-m)',
+                padding: '8px 16px',
+                color: 'var(--text-body)',
+                fontSize: '13px',
+                fontWeight: 500
               }}
             >
               Cancel
             </button>
-
             <button
               type="submit"
               style={{
-                padding: '11px 24px',
-                background: `linear-gradient(135deg, ${activeSub?.color || '#38bdf8'}, #6366f1)`,
+                background: 'var(--accent)',
+                color: '#000000',
                 border: 'none',
-                borderRadius: '12px',
-                color: '#ffffff',
-                fontSize: '14px',
+                borderRadius: 'var(--radius-m)',
+                padding: '8px 18px',
+                fontSize: '13px',
                 fontWeight: 600,
-                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                boxShadow: `0 4px 18px ${activeSub?.color || '#38bdf8'}66`
+                gap: '6px'
               }}
             >
-              <Plus size={18} />
-              Store Code Snippet
+              <Check size={14} />
+              <span>Save Snippet</span>
             </button>
           </div>
         </form>

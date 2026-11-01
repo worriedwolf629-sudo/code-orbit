@@ -209,69 +209,56 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="main-content">
-        {/* Subject Header Banner */}
+        {/* Subject header */}
         <div
           style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '14px',
-            padding: '12px 16px',
-            background: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(12px)',
-            borderRadius: '16px',
-            border: '1px solid rgba(255, 255, 255, 0.08)'
+            marginBottom: '12px',
+            padding: '10px 14px',
+            background: 'var(--bg-surface)',
+            borderRadius: 'var(--radius-l)',
+            border: '1px solid var(--border)'
           }}
         >
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  background: activeSubject.color || '#38bdf8',
-                  boxShadow: `0 0 10px ${activeSubject.color || '#38bdf8'}`
-                }}
-              />
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: '#ffffff'
-                }}
-              >
-                {activeSubject.name}
-              </h2>
-            </div>
-            <p
+            <h2
               style={{
-                margin: '2px 0 0 18px',
-                fontSize: '12px',
-                color: '#94a3b8'
+                margin: 0,
+                fontSize: '16px',
+                fontWeight: 700,
+                color: 'var(--text-primary)',
+                letterSpacing: '-0.02em'
               }}
             >
-              {activeSubject.description || 'Subject code repository'}
+              {activeSubject.name}
+            </h2>
+            <p
+              style={{
+                margin: '2px 0 0 0',
+                fontSize: '12px',
+                color: 'var(--text-dim)'
+              }}
+            >
+              {activeSubject.description || 'Code repository'}
             </p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div
-              style={{
-                padding: '6px 12px',
-                borderRadius: '999px',
-                background: `${activeSubject.color || '#38bdf8'}18`,
-                border: `1px solid ${activeSubject.color || '#38bdf8'}33`,
-                fontSize: '12px',
-                fontWeight: 700,
-                color: activeSubject.color || '#38bdf8',
-                fontFamily: '"JetBrains Mono", monospace'
-              }}
-            >
-              {currentSubjectSnippets.length} Code Orbs
-            </div>
-          </div>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: 'var(--text-body)',
+              background: 'var(--bg-raised)',
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-s)',
+              border: '1px solid var(--border)'
+            }}
+          >
+            {currentSubjectSnippets.length}
+          </span>
         </div>
 
         {/* Dynamic View: Serial List or Obsidian-style Orb Network Diagram */}

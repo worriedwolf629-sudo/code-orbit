@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
-import { X, Layers, Plus, Trash2, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Plus, Trash2, Check } from 'lucide-react';
 
 const PRESET_COLORS = [
-  { name: 'Sky Cyan', hex: '#38bdf8' },
-  { name: 'Electric Violet', hex: '#a855f7' },
-  { name: 'Amber Gold', hex: '#f59e0b' },
-  { name: 'Emerald Mint', hex: '#10b981' },
-  { name: 'Neon Rose', hex: '#f43f5e' },
-  { name: 'Indigo Core', hex: '#6366f1' },
-  { name: 'Sunset Orange', hex: '#fb923c' }
+  { name: 'Teal', hex: '#2dd4bf' },
+  { name: 'Sky', hex: '#38bdf8' },
+  { name: 'Indigo', hex: '#818cf8' },
+  { name: 'Amber', hex: '#f59e0b' },
+  { name: 'Emerald', hex: '#34d399' },
+  { name: 'Rose', hex: '#f43f5e' },
+  { name: 'Slate', hex: '#94a3b8' }
 ];
 
 export default function SubjectModal({
@@ -23,6 +23,15 @@ export default function SubjectModal({
   const [color, setColor] = useState(PRESET_COLORS[0].hex);
   const [activeTab, setActiveTab] = useState('create'); // 'create' or 'manage'
 
+  // Close on Escape
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const handleCreate = (e) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -33,13 +42,15 @@ export default function SubjectModal({
     const newSubject = {
       id: `sub-${Date.now()}`,
       name: name.trim(),
-      description: description.trim() || 'Custom Code & Algorithms Subject',
+      description: description.trim() || 'Code & Study Notes',
       color: color,
       createdAt: new Date().toISOString().split('T')[0]
     };
 
     onCreateSubject(newSubject);
-    onShowToast(`Subject "${name.trim()}" added!`);
+    onShowToast(`Created subject "${name.trim()}"`);
+    setName('');
+    setDescription('');
     onClose();
   };
 
@@ -49,17 +60,13 @@ export default function SubjectModal({
       onClick={onClose}
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(5, 8, 15, 0.85)',
-        backdropFilter: 'blur(16px)',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
         zIndex: 100,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '12px'
+        padding: '16px'
       }}
     >
       <div
@@ -69,142 +76,134 @@ export default function SubjectModal({
           width: '100%',
           maxWidth: '520px',
           maxHeight: 'calc(100vh - 40px)',
-          backgroundColor: '#0c1220',
-          borderRadius: '24px',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          backgroundColor: 'var(--bg-surface)',
+          borderRadius: 'var(--radius-l)',
+          border: '1px solid var(--border)',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8)',
           overflow: 'hidden'
         }}
       >
         {/* Header */}
         <div
           style={{
-            padding: '16px 20px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '14px 18px',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(15, 23, 42, 0.6)'
+            background: 'var(--bg-base)'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
+          <div>
+            <h3
               style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: `linear-gradient(135deg, ${color}33, #6366f133)`,
-                color: color,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
+                margin: 0,
+                fontSize: '15px',
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                letterSpacing: '-0.02em'
               }}
             >
-              <Layers size={20} />
-            </div>
-            <h3 style={{ margin: 0, fontSize: '17px', color: '#ffffff', fontWeight: 700 }}>
-              Subject Manager
+              Subjects
             </h3>
+            <p
+              style={{
+                margin: '2px 0 0 0',
+                fontSize: '12px',
+                color: 'var(--text-dim)'
+              }}
+            >
+              Organize your code vault by topic
+            </p>
           </div>
-
           <button
             onClick={onClose}
             aria-label="Close"
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '10px',
-              width: '34px',
-              height: '34px',
-              color: '#cbd5e1',
+              background: 'transparent',
+              color: 'var(--text-dim)',
+              padding: '6px',
+              borderRadius: 'var(--radius-s)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
+              justifyContent: 'center'
             }}
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Tab switch: Add Subject vs Manage Existing */}
+        {/* Tab Switcher */}
         <div
           style={{
             display: 'flex',
-            padding: '8px 20px',
-            background: 'rgba(9, 13, 22, 0.5)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+            borderBottom: '1px solid var(--border)',
+            padding: '4px 18px',
+            background: 'var(--bg-base)',
             gap: '8px'
           }}
         >
           <button
             onClick={() => setActiveTab('create')}
             style={{
-              flex: 1,
-              padding: '8px 12px',
-              borderRadius: '10px',
-              border: 'none',
-              background: activeTab === 'create' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
-              color: activeTab === 'create' ? '#38bdf8' : '#94a3b8',
-              fontWeight: 600,
-              fontSize: '13px',
-              cursor: 'pointer'
+              padding: '6px 12px',
+              fontSize: '12.5px',
+              fontWeight: 500,
+              background: activeTab === 'create' ? 'var(--bg-raised)' : 'transparent',
+              color: activeTab === 'create' ? 'var(--text-primary)' : 'var(--text-dim)',
+              borderRadius: 'var(--radius-s)',
+              border: 'none'
             }}
           >
-            + Add New Subject
+            Add New Subject
           </button>
           <button
             onClick={() => setActiveTab('manage')}
             style={{
-              flex: 1,
-              padding: '8px 12px',
-              borderRadius: '10px',
-              border: 'none',
-              background: activeTab === 'manage' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
-              color: activeTab === 'manage' ? '#38bdf8' : '#94a3b8',
-              fontWeight: 600,
-              fontSize: '13px',
-              cursor: 'pointer'
+              padding: '6px 12px',
+              fontSize: '12.5px',
+              fontWeight: 500,
+              background: activeTab === 'manage' ? 'var(--bg-raised)' : 'transparent',
+              color: activeTab === 'manage' ? 'var(--text-primary)' : 'var(--text-dim)',
+              borderRadius: 'var(--radius-s)',
+              border: 'none'
             }}
           >
-            Your Subjects ({subjects.length})
+            All Subjects ({subjects.length})
           </button>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+        {/* Tab Body */}
+        <div style={{ padding: '16px 18px', overflowY: 'auto' }}>
           {activeTab === 'create' ? (
-            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label
                   style={{
                     display: 'block',
                     fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#94a3b8',
+                    fontWeight: 500,
+                    color: 'var(--text-dim)',
                     marginBottom: '6px'
                   }}
                 >
-                  Subject Name *
+                  Subject Name
                 </label>
                 <input
                   type="text"
-                  required
-                  placeholder="e.g., DSA, OOPs, Java, Python, System Design"
+                  placeholder="e.g. DSA, OOPs, Java, Dynamic Programming"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  autoFocus
                   style={{
                     width: '100%',
-                    padding: '12px 14px',
-                    background: 'rgba(15, 23, 42, 0.8)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderRadius: '12px',
-                    color: '#ffffff',
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    outline: 'none'
+                    background: 'var(--bg-base)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-m)',
+                    padding: '9px 12px',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px'
                   }}
                 />
               </div>
@@ -214,27 +213,26 @@ export default function SubjectModal({
                   style={{
                     display: 'block',
                     fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#94a3b8',
+                    fontWeight: 500,
+                    color: 'var(--text-dim)',
                     marginBottom: '6px'
                   }}
                 >
-                  Description / Topic Focus (Optional)
+                  Description (optional)
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g., LeetCode patterns, Semester exams, Concepts"
+                  placeholder="e.g. Data Structures & Algorithms in Java"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '11px 14px',
-                    background: 'rgba(15, 23, 42, 0.8)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderRadius: '12px',
-                    color: '#cbd5e1',
-                    fontSize: '13px',
-                    outline: 'none'
+                    background: 'var(--bg-base)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-m)',
+                    padding: '9px 12px',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px'
                   }}
                 />
               </div>
@@ -244,52 +242,60 @@ export default function SubjectModal({
                   style={{
                     display: 'block',
                     fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#94a3b8',
+                    fontWeight: 500,
+                    color: 'var(--text-dim)',
                     marginBottom: '8px'
                   }}
                 >
-                  Theme Accent Color & Orb Glow
+                  Indicator Color
                 </label>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  {PRESET_COLORS.map((c) => (
-                    <button
-                      key={c.hex}
-                      type="button"
-                      onClick={() => setColor(c.hex)}
-                      title={c.name}
-                      style={{
-                        width: '38px',
-                        height: '38px',
-                        borderRadius: '12px',
-                        background: c.hex,
-                        border: color === c.hex ? '3px solid #ffffff' : '1px solid transparent',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: color === c.hex ? `0 0 16px ${c.hex}` : 'none'
-                      }}
-                    >
-                      {color === c.hex && <Check size={18} color="#000000" />}
-                    </button>
-                  ))}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {PRESET_COLORS.map((c) => {
+                    const isSelected = color === c.hex;
+                    return (
+                      <button
+                        type="button"
+                        key={c.hex}
+                        onClick={() => setColor(c.hex)}
+                        title={c.name}
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '50%',
+                          backgroundColor: c.hex,
+                          border: isSelected ? '2px solid #ffffff' : '2px solid transparent',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0
+                        }}
+                      >
+                        {isSelected && <Check size={14} color="#000000" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '10px',
+                  paddingTop: '10px',
+                  borderTop: '1px solid var(--border)'
+                }}
+              >
                 <button
                   type="button"
                   onClick={onClose}
                   style={{
-                    padding: '11px 18px',
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '12px',
-                    color: '#cbd5e1',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    cursor: 'pointer'
+                    background: 'transparent',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-m)',
+                    padding: '8px 16px',
+                    color: 'var(--text-body)',
+                    fontSize: '13px'
                   }}
                 >
                   Cancel
@@ -297,27 +303,25 @@ export default function SubjectModal({
                 <button
                   type="submit"
                   style={{
-                    padding: '11px 22px',
-                    background: `linear-gradient(135deg, ${color}, #6366f1)`,
+                    background: 'var(--accent)',
+                    color: '#000000',
                     border: 'none',
-                    borderRadius: '12px',
-                    color: '#ffffff',
-                    fontSize: '14px',
+                    borderRadius: 'var(--radius-m)',
+                    padding: '8px 18px',
+                    fontSize: '13px',
                     fontWeight: 600,
-                    cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: `0 4px 18px ${color}66`
+                    gap: '6px'
                   }}
                 >
-                  <Plus size={18} />
-                  Add Subject
+                  <Plus size={14} />
+                  <span>Create Subject</span>
                 </button>
               </div>
             </form>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {subjects.map((sub) => (
                 <div
                   key={sub.id}
@@ -325,52 +329,56 @@ export default function SubjectModal({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '12px 14px',
-                    background: 'rgba(15, 23, 42, 0.7)',
-                    borderRadius: '14px',
-                    border: '1px solid rgba(255, 255, 255, 0.08)'
+                    padding: '10px 14px',
+                    background: 'var(--bg-base)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-m)'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span
                       style={{
-                        width: '14px',
-                        height: '14px',
+                        width: '10px',
+                        height: '10px',
                         borderRadius: '50%',
-                        background: sub.color || '#38bdf8',
-                        boxShadow: `0 0 10px ${sub.color || '#38bdf8'}`
+                        backgroundColor: sub.color || 'var(--accent)'
                       }}
                     />
                     <div>
-                      <h4 style={{ margin: 0, fontSize: '15px', color: '#f8fafc', fontWeight: 600 }}>
+                      <div
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: 'var(--text-primary)'
+                        }}
+                      >
                         {sub.name}
-                      </h4>
-                      <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>
-                        {sub.description}
-                      </p>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          color: 'var(--text-dim)'
+                        }}
+                      >
+                        {sub.description || 'Subject'}
+                      </div>
                     </div>
                   </div>
 
                   {subjects.length > 1 && (
                     <button
                       onClick={() => {
-                        if (confirm(`Delete subject "${sub.name}" and all its code?`)) {
+                        if (window.confirm(`Delete subject "${sub.name}" and its snippets?`)) {
                           onDeleteSubject(sub.id);
-                          onShowToast(`Subject ${sub.name} removed`);
                         }
                       }}
-                      title="Delete Subject"
+                      title="Delete subject"
                       style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '8px',
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        border: '1px solid rgba(239, 68, 68, 0.2)',
-                        color: '#f87171',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer'
+                        background: 'transparent',
+                        color: 'var(--text-dim)',
+                        border: 'none',
+                        padding: '6px',
+                        borderRadius: 'var(--radius-s)'
                       }}
                     >
                       <Trash2 size={15} />

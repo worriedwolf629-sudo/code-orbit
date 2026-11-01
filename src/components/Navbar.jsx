@@ -1,13 +1,10 @@
 import React from 'react';
 import {
-  ListFilter,
-  Sparkles,
+  List,
+  GitFork,
   Plus,
-  Layers,
   FileJson,
   Smartphone,
-  RefreshCw,
-  Wifi
 } from 'lucide-react';
 
 export default function Navbar({
@@ -29,17 +26,15 @@ export default function Navbar({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: '12px',
-        padding: '14px 16px',
-        background: 'rgba(10, 14, 26, 0.85)',
-        backdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        gap: '10px',
+        padding: '12px 16px',
+        background: 'var(--bg-surface)',
+        borderBottom: '1px solid var(--border)',
         position: 'sticky',
         top: 0,
         zIndex: 50
       }}
     >
-      {/* Top App Bar: Brand Logo, View Switcher & Action Icons */}
       <div
         style={{
           display: 'flex',
@@ -48,199 +43,172 @@ export default function Navbar({
           gap: '12px'
         }}
       >
-        {/* Brand Logo & Live Sync Indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Brand */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: '16px',
+              fontWeight: 700,
+              letterSpacing: '-0.02em',
+              color: 'var(--text-primary)'
+            }}
+          >
+            CodeOrbit
+          </h1>
+          <button
+            onClick={onManualSync}
+            title="Sync status (click to refresh)"
+            aria-label="Sync status"
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: '2px 6px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '11px',
+              color: isLiveSync ? 'var(--accent)' : 'var(--text-dim)',
+              fontWeight: 500
+            }}
+          >
+            <span
+              style={{
+                width: '5px',
+                height: '5px',
+                borderRadius: '50%',
+                background: isLiveSync ? 'var(--accent)' : 'var(--text-dim)'
+              }}
+            />
+            <span>{isLiveSync ? 'Synced' : 'Local'}</span>
+          </button>
+        </div>
+
+        {/* View toggle and actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {/* View switcher */}
           <div
             style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 16px rgba(14, 165, 233, 0.5)',
-              position: 'relative'
+              background: 'var(--bg-base)',
+              padding: '2px',
+              borderRadius: 'var(--radius-m)',
+              border: '1px solid var(--border)'
             }}
           >
-            <div
+            <button
+              onClick={() => setActiveView('network')}
+              aria-label="Graph view"
               style={{
-                width: '12px',
-                height: '12px',
-                borderRadius: '50%',
-                background: '#ffffff',
-                boxShadow: '0 0 8px #ffffff'
-              }}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                width: '26px',
-                height: '26px',
-                borderRadius: '50%',
-                border: '1.5px dashed rgba(255, 255, 255, 0.6)'
-              }}
-            />
-          </div>
-
-          <div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: '18px',
-                fontWeight: 800,
-                letterSpacing: '-0.5px',
-                background: 'linear-gradient(90deg, #f8fafc, #93c5fd)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '5px',
+                padding: '5px 10px',
+                borderRadius: '6px',
+                background: activeView === 'network' ? 'var(--bg-raised)' : 'transparent',
+                color: activeView === 'network' ? 'var(--text-primary)' : 'var(--text-dim)',
+                fontWeight: 600,
+                fontSize: '12px',
+                transition: 'background-color 0.12s ease'
               }}
             >
-              CodeOrbit
-            </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <button
-                onClick={onManualSync}
-                title="Laptop ↔ Phone Real-Time Sync Status (Click to force refresh)"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  padding: 0,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  color: isLiveSync ? '#34d399' : '#94a3b8',
-                  fontWeight: 600
-                }}
-              >
-                <span
-                  style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    background: isLiveSync ? '#10b981' : '#f59e0b',
-                    boxShadow: isLiveSync ? '0 0 8px #10b981' : 'none'
-                  }}
-                />
-                <span>{isLiveSync ? 'Live Synced' : 'Syncing...'}</span>
-              </button>
-            </div>
+              <GitFork size={14} />
+              <span>Graph</span>
+            </button>
+
+            <button
+              onClick={() => setActiveView('list')}
+              aria-label="List view"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '5px 10px',
+                borderRadius: '6px',
+                background: activeView === 'list' ? 'var(--bg-raised)' : 'transparent',
+                color: activeView === 'list' ? 'var(--text-primary)' : 'var(--text-dim)',
+                fontWeight: 600,
+                fontSize: '12px',
+                transition: 'background-color 0.12s ease'
+              }}
+            >
+              <List size={14} />
+              <span>List</span>
+            </button>
           </div>
-        </div>
 
-        {/* View Switcher: Serial List vs Obsidian Graph */}
-        <div
-          style={{
-            display: 'flex',
-            background: 'rgba(15, 23, 42, 0.8)',
-            padding: '3px',
-            borderRadius: '14px',
-            border: '1px solid rgba(255, 255, 255, 0.1)'
-          }}
-        >
-          <button
-            onClick={() => setActiveView('network')}
-            aria-label="Obsidian Graph View"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 12px',
-              borderRadius: '11px',
-              border: 'none',
-              background: activeView === 'network' ? 'linear-gradient(135deg, #a855f7, #6366f1)' : 'transparent',
-              color: activeView === 'network' ? '#ffffff' : '#94a3b8',
-              fontWeight: 700,
-              fontSize: '12px',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              boxShadow: activeView === 'network' ? '0 0 12px rgba(168, 85, 247, 0.4)' : 'none'
-            }}
-          >
-            <Sparkles size={15} />
-            <span>Graph</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView('list')}
-            aria-label="Serial Wise List View"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 12px',
-              borderRadius: '11px',
-              border: 'none',
-              background: activeView === 'list' ? 'linear-gradient(135deg, #0ea5e9, #38bdf8)' : 'transparent',
-              color: activeView === 'list' ? '#090d16' : '#94a3b8',
-              fontWeight: 700,
-              fontSize: '12px',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <ListFilter size={15} />
-            <span>List</span>
-          </button>
-        </div>
-
-        {/* Action icons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <button
             onClick={onOpenPhoneModal}
-            title="Open on Phone"
-            aria-label="Open on phone"
+            title="Connect phone"
+            aria-label="Connect phone"
             style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              background: 'rgba(56, 189, 248, 0.1)',
-              border: '1px solid rgba(56, 189, 248, 0.25)',
-              color: '#38bdf8',
+              width: '32px',
+              height: '32px',
+              borderRadius: 'var(--radius-m)',
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              color: 'var(--text-body)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer'
+              transition: 'background-color 0.12s ease'
             }}
           >
-            <Smartphone size={16} />
+            <Smartphone size={14} />
           </button>
 
           <button
             onClick={onOpenBackupModal}
-            title="Backup & Sync Vault"
-            aria-label="Backup and sync vault"
+            title="Backup and import"
+            aria-label="Backup and import"
             style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              color: '#94a3b8',
+              width: '32px',
+              height: '32px',
+              borderRadius: 'var(--radius-m)',
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              color: 'var(--text-body)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer'
+              transition: 'background-color 0.12s ease'
             }}
           >
-            <FileJson size={16} />
+            <FileJson size={14} />
+          </button>
+
+          <button
+            onClick={onOpenNewSnippetModal}
+            title="New Snippet"
+            aria-label="New Snippet"
+            style={{
+              height: '32px',
+              padding: '0 10px',
+              borderRadius: 'var(--radius-m)',
+              background: 'var(--accent)',
+              border: 'none',
+              color: '#000000',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '12px',
+              fontWeight: 600
+            }}
+          >
+            <Plus size={14} />
+            <span className="hide-on-small-mobile">Add</span>
           </button>
         </div>
       </div>
 
-      {/* Horizontal Scrollable Subject Pills */}
+      {/* Subject tabs */}
       <div
         className="subject-pills-bar"
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
+          gap: '6px',
           overflowX: 'auto',
-          paddingBottom: '2px',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none'
         }}
@@ -256,43 +224,40 @@ export default function Navbar({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                padding: '7px 14px',
-                borderRadius: '999px',
+                gap: '6px',
+                padding: '5px 12px',
+                borderRadius: 'var(--radius-m)',
                 border: isActive
-                  ? `1.5px solid ${sub.color || '#38bdf8'}`
-                  : '1px solid rgba(255, 255, 255, 0.08)',
+                  ? `1px solid ${sub.color || 'var(--accent)'}`
+                  : '1px solid var(--border)',
                 background: isActive
-                  ? `${sub.color || '#38bdf8'}22`
-                  : 'rgba(15, 23, 42, 0.6)',
-                color: isActive ? '#ffffff' : '#94a3b8',
-                fontWeight: isActive ? 700 : 500,
+                  ? `${sub.color || 'var(--accent)'}14`
+                  : 'transparent',
+                color: isActive ? 'var(--text-primary)' : 'var(--text-body)',
+                fontWeight: isActive ? 600 : 400,
                 fontSize: '13px',
-                cursor: 'pointer',
                 whiteSpace: 'nowrap',
-                transition: 'all 0.2s ease',
-                flexShrink: 0,
-                boxShadow: isActive ? `0 0 14px ${sub.color || '#38bdf8'}33` : 'none'
+                transition: 'all 0.12s ease',
+                flexShrink: 0
               }}
             >
               <span
                 style={{
-                  width: '8px',
-                  height: '8px',
+                  width: '6px',
+                  height: '6px',
                   borderRadius: '50%',
-                  background: sub.color || '#38bdf8',
-                  boxShadow: isActive ? `0 0 8px ${sub.color || '#38bdf8'}` : 'none'
+                  background: sub.color || 'var(--accent)'
                 }}
               />
               <span>{sub.name}</span>
               <span
                 style={{
                   fontSize: '11px',
-                  fontFamily: '"JetBrains Mono", monospace',
-                  padding: '1px 6px',
-                  borderRadius: '10px',
-                  background: isActive ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0.06)',
-                  color: isActive ? '#ffffff' : '#64748b'
+                  fontFamily: 'var(--font-mono)',
+                  padding: '0 5px',
+                  borderRadius: '4px',
+                  background: isActive ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.04)',
+                  color: isActive ? 'var(--text-primary)' : 'var(--text-dim)'
                 }}
               >
                 {count}
@@ -301,29 +266,28 @@ export default function Navbar({
           );
         })}
 
-        {/* Add Subject Button */}
         <button
           onClick={onOpenSubjectModal}
-          title="Add New Subject"
-          aria-label="Add new subject"
+          title="Add subject"
+          aria-label="Add subject"
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            padding: '7px 12px',
-            borderRadius: '999px',
-            border: '1px dashed rgba(255, 255, 255, 0.2)',
-            background: 'rgba(255, 255, 255, 0.03)',
-            color: '#cbd5e1',
+            gap: '4px',
+            padding: '5px 10px',
+            borderRadius: 'var(--radius-m)',
+            border: '1px dashed var(--border-focus)',
+            background: 'transparent',
+            color: 'var(--text-dim)',
             fontSize: '12px',
-            fontWeight: 600,
-            cursor: 'pointer',
+            fontWeight: 500,
             whiteSpace: 'nowrap',
-            flexShrink: 0
+            flexShrink: 0,
+            transition: 'color 0.12s ease'
           }}
         >
-          <Plus size={14} />
-          <span>Add Sub</span>
+          <Plus size={13} />
+          <span>Add</span>
         </button>
       </div>
     </header>

@@ -1,16 +1,11 @@
 import React, { useState } from 'react';
 import {
-  Code2,
   Copy,
   Check,
   ChevronUp,
   ChevronDown,
-  Trash2,
-  ExternalLink,
   Search,
-  Sparkles,
   Plus,
-  Clock,
   ArrowUpDown
 } from 'lucide-react';
 
@@ -20,23 +15,22 @@ export default function SerialListView({
   onSelectSnippet,
   onAddNewSnippet,
   onMoveSnippet,
-  onDeleteSnippet,
+  _onDeleteSnippet,
   onShowToast
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState(null);
   const [sortAsc, setSortAsc] = useState(true);
 
-  // Filter snippets by search query
   const filteredSnippets = snippets.filter(item => {
     const q = searchQuery.toLowerCase();
-    const titleMatch = item.title.toLowerCase().includes(q);
-    const codeMatch = item.code.toLowerCase().includes(q);
-    const langMatch = (item.language || '').toLowerCase().includes(q);
-    return titleMatch || codeMatch || langMatch;
+    return (
+      item.title.toLowerCase().includes(q) ||
+      item.code.toLowerCase().includes(q) ||
+      (item.language || '').toLowerCase().includes(q)
+    );
   });
 
-  // Sort by serial number
   const sortedSnippets = [...filteredSnippets].sort((a, b) => {
     return sortAsc
       ? (a.serialNumber || 0) - (b.serialNumber || 0)
@@ -47,164 +41,126 @@ export default function SerialListView({
     e.stopPropagation();
     navigator.clipboard.writeText(snippet.code);
     setCopiedId(snippet.id);
-    onShowToast(`Copied "${snippet.title}" to clipboard!`);
-    setTimeout(() => {
-      setCopiedId(null);
-    }, 2000);
+    onShowToast(`Copied "${snippet.title}"`);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   return (
-    <div className="serial-list-view" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Search & Serial Sort Filter Bar */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '10px',
-          alignItems: 'center'
-        }}
-      >
-        <div
-          style={{
-            flex: 1,
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center'
-          }}
-        >
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* Search and sort */}
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
           <Search
-            size={18}
+            size={15}
             style={{
               position: 'absolute',
-              left: '14px',
-              color: '#94a3b8',
+              left: '10px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-dim)',
               pointerEvents: 'none'
             }}
           />
           <input
             type="text"
-            placeholder={`Search ${subject.name} by title or code...`}
+            placeholder={`Search ${subject.name}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               width: '100%',
-              padding: '12px 14px 12px 42px',
-              background: 'rgba(15, 23, 42, 0.7)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '14px',
-              color: '#f8fafc',
-              fontSize: '14px',
+              padding: '9px 10px 9px 32px',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-m)',
+              color: 'var(--text-primary)',
+              fontSize: '13px',
               outline: 'none',
-              backdropFilter: 'blur(10px)',
-              transition: 'border-color 0.2s ease'
+              transition: 'border-color 0.12s ease'
             }}
           />
         </div>
 
         <button
           onClick={() => setSortAsc(!sortAsc)}
-          title={`Sorting: Serial ${sortAsc ? '1 → N' : 'N → 1'}`}
-          aria-label="Toggle serial sort order"
+          title={`Sort: ${sortAsc ? '1 to N' : 'N to 1'}`}
+          aria-label="Toggle sort order"
           style={{
-            padding: '12px 14px',
-            background: 'rgba(15, 23, 42, 0.7)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '14px',
-            color: '#cbd5e1',
+            padding: '9px 10px',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-m)',
+            color: 'var(--text-body)',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            fontSize: '13px',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap'
+            gap: '4px',
+            fontSize: '12px'
           }}
         >
-          <ArrowUpDown size={16} />
-          <span className="hide-on-small-mobile">#{sortAsc ? '1→N' : 'N→1'}</span>
+          <ArrowUpDown size={14} />
+          <span className="hide-on-small-mobile">#{sortAsc ? '1-N' : 'N-1'}</span>
         </button>
       </div>
 
-      {/* Snippets Count Indicator */}
+      {/* Count */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '2px 4px',
-          fontSize: '13px',
-          color: '#94a3b8'
+          fontSize: '12px',
+          color: 'var(--text-dim)',
+          padding: '0 2px'
         }}
       >
         <span>
-          Showing <strong style={{ color: '#f8fafc' }}>{sortedSnippets.length}</strong> of{' '}
-          {snippets.length} serial items in <span style={{ color: subject.color }}>{subject.name}</span>
+          {sortedSnippets.length} of {snippets.length} in{' '}
+          <span style={{ color: subject.color }}>{subject.name}</span>
         </span>
-        <span style={{ fontSize: '12px', opacity: 0.8 }}>
-          Tap item to view full code
-        </span>
+        <span>Tap to view</span>
       </div>
 
-      {/* Empty State */}
+      {/* Empty state */}
       {sortedSnippets.length === 0 && (
         <div
           style={{
             textAlign: 'center',
-            padding: '48px 20px',
-            background: 'rgba(15, 23, 42, 0.4)',
-            borderRadius: '20px',
-            border: '1px dashed rgba(255, 255, 255, 0.12)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '12px'
+            padding: '40px 20px',
+            background: 'var(--bg-surface)',
+            borderRadius: 'var(--radius-l)',
+            border: '1px dashed var(--border-focus)'
           }}
         >
-          <div
-            style={{
-              width: '54px',
-              height: '54px',
-              borderRadius: '50%',
-              background: `${subject.color || '#38bdf8'}1a`,
-              color: subject.color || '#38bdf8',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <Sparkles size={24} />
-          </div>
-          <h3 style={{ margin: 0, fontSize: '17px', color: '#f1f5f9' }}>
-            {searchQuery ? 'No matching code found' : `No snippets in ${subject.name} yet`}
-          </h3>
-          <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', maxWidth: '280px' }}>
+          <p style={{ fontSize: '15px', color: 'var(--text-primary)', fontWeight: 600, marginBottom: '6px' }}>
+            {searchQuery ? 'No results' : `No snippets in ${subject.name}`}
+          </p>
+          <p style={{ fontSize: '13px', color: 'var(--text-body)', marginBottom: '16px', maxWidth: '260px', marginLeft: 'auto', marginRight: 'auto' }}>
             {searchQuery
-              ? 'Try searching with different keywords or clear the search input.'
-              : 'Add your manually titled code snippet to organize your subject notes.'}
+              ? 'Try different keywords or clear the search.'
+              : 'Add your first code snippet to get started.'}
           </p>
           <button
             onClick={onAddNewSnippet}
             style={{
-              marginTop: '8px',
-              padding: '10px 18px',
-              background: `linear-gradient(135deg, ${subject.color || '#38bdf8'}, #6366f1)`,
+              padding: '8px 16px',
+              background: 'var(--accent)',
               border: 'none',
-              borderRadius: '12px',
-              color: '#ffffff',
+              borderRadius: 'var(--radius-m)',
+              color: '#111113',
               fontWeight: 600,
               fontSize: '13px',
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
-              cursor: 'pointer'
+              gap: '5px'
             }}
           >
-            <Plus size={16} />
-            Paste New Code
+            <Plus size={15} />
+            Add Code
           </button>
         </div>
       )}
 
-      {/* List of Serial Snippets */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* Snippet cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {sortedSnippets.map((item, index) => {
           const lines = item.code.split('\n');
           const lineCount = lines.length;
@@ -217,198 +173,144 @@ export default function SerialListView({
               onClick={() => onSelectSnippet(item)}
               className="serial-card-item"
               style={{
-                position: 'relative',
-                background: 'rgba(15, 23, 42, 0.65)',
-                backdropFilter: 'blur(14px)',
-                borderRadius: '18px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                padding: '16px',
+                background: 'var(--bg-surface)',
+                borderRadius: 'var(--radius-l)',
+                border: '1px solid var(--border)',
+                padding: '12px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '12px',
-                cursor: 'pointer',
-                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
+                gap: '10px',
+                cursor: 'pointer'
               }}
             >
-              {/* Card Top: Serial Badge, Heading, and Actions */}
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  gap: '12px'
-                }}
-              >
-                {/* Left: Serial Number Badge & Heading Title */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-                  <div
+              {/* Top: serial, heading, actions */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                  {/* Serial number */}
+                  <span
                     style={{
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '12px',
-                      background: `linear-gradient(135deg, ${subject.color}22, rgba(99, 102, 241, 0.15))`,
-                      border: `1.5px solid ${subject.color}55`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: subject.color || 'var(--accent)',
+                      background: `${subject.color || 'var(--accent)'}14`,
+                      padding: '4px 8px',
+                      borderRadius: 'var(--radius-s)',
                       flexShrink: 0
                     }}
                   >
-                    <span
-                      style={{
-                        fontFamily: '"JetBrains Mono", monospace',
-                        fontSize: '13px',
-                        fontWeight: 700,
-                        color: subject.color || '#38bdf8'
-                      }}
-                    >
-                      {String(item.serialNumber || index + 1).padStart(2, '0')}
-                    </span>
-                    <span style={{ fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      NUM
-                    </span>
-                  </div>
+                    {String(item.serialNumber || index + 1).padStart(2, '0')}
+                  </span>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <h4
-                      style={{
-                        margin: '0 0 4px 0',
-                        fontSize: '15px',
-                        fontWeight: 600,
-                        color: '#f8fafc',
-                        lineHeight: 1.3,
-                        wordBreak: 'break-word'
-                      }}
-                    >
+                    <h4 style={{
+                      margin: '0 0 3px 0',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      lineHeight: 1.3,
+                      wordBreak: 'break-word'
+                    }}>
                       {item.title}
                     </h4>
-
-                    {/* Metadata tags */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                          background: 'rgba(255, 255, 255, 0.08)',
-                          color: '#38bdf8',
-                          textTransform: 'uppercase',
-                          fontFamily: '"JetBrains Mono", monospace'
-                        }}
-                      >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        padding: '1px 6px',
+                        borderRadius: '3px',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        color: 'var(--text-body)',
+                        textTransform: 'uppercase',
+                        fontFamily: 'var(--font-mono)'
+                      }}>
                         {item.language || 'code'}
                       </span>
-                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
                         {lineCount} lines
                       </span>
-                      {item.notes && (
-                        <span
-                          style={{
-                            fontSize: '11px',
-                            color: '#a855f7',
-                            background: 'rgba(168, 85, 247, 0.12)',
-                            padding: '1px 6px',
-                            borderRadius: '4px'
-                          }}
-                        >
-                          Notes
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Right: Quick Action Buttons */}
+                {/* Actions */}
                 <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    flexShrink: 0
-                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {/* Quick Copy Button */}
                   <button
                     onClick={(e) => handleQuickCopy(e, item)}
-                    title="Quick Copy Code"
+                    title="Copy code"
                     aria-label={`Copy ${item.title}`}
                     style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      border: isCopied ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.1)',
-                      background: isCopied ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                      color: isCopied ? '#10b981' : '#cbd5e1',
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: 'var(--radius-s)',
+                      border: '1px solid var(--border)',
+                      background: isCopied ? 'var(--accent-dim)' : 'transparent',
+                      color: isCopied ? 'var(--accent)' : 'var(--text-dim)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
+                      transition: 'all 0.12s ease'
                     }}
                   >
-                    {isCopied ? <Check size={16} /> : <Copy size={16} />}
+                    {isCopied ? <Check size={13} /> : <Copy size={13} />}
                   </button>
 
-                  {/* Serial Reorder Up / Down */}
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <button
                       onClick={() => onMoveSnippet(item.id, -1)}
-                      title="Move Up in Serial List"
+                      title="Move up"
                       aria-label="Move snippet up"
                       disabled={index === 0}
                       style={{
-                        width: '24px',
-                        height: '18px',
+                        width: '22px',
+                        height: '15px',
                         background: 'transparent',
                         border: 'none',
-                        color: index === 0 ? 'rgba(255, 255, 255, 0.15)' : '#94a3b8',
-                        cursor: index === 0 ? 'not-allowed' : 'pointer',
+                        color: index === 0 ? 'var(--border)' : 'var(--text-dim)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}
                     >
-                      <ChevronUp size={14} />
+                      <ChevronUp size={12} />
                     </button>
                     <button
                       onClick={() => onMoveSnippet(item.id, 1)}
-                      title="Move Down in Serial List"
+                      title="Move down"
                       aria-label="Move snippet down"
                       disabled={index === sortedSnippets.length - 1}
                       style={{
-                        width: '24px',
-                        height: '18px',
+                        width: '22px',
+                        height: '15px',
                         background: 'transparent',
                         border: 'none',
-                        color: index === sortedSnippets.length - 1 ? 'rgba(255, 255, 255, 0.15)' : '#94a3b8',
-                        cursor: index === sortedSnippets.length - 1 ? 'not-allowed' : 'pointer',
+                        color: index === sortedSnippets.length - 1 ? 'var(--border)' : 'var(--text-dim)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}
                     >
-                      <ChevronDown size={14} />
+                      <ChevronDown size={12} />
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Code Preview Box */}
+              {/* Code preview */}
               <div
                 style={{
-                  background: 'rgba(9, 13, 22, 0.75)',
-                  borderRadius: '10px',
-                  padding: '10px 12px',
-                  border: '1px solid rgba(255, 255, 255, 0.05)',
-                  fontSize: '12px',
-                  fontFamily: '"JetBrains Mono", monospace',
-                  color: '#94a3b8',
+                  background: 'var(--code-bg)',
+                  borderRadius: 'var(--radius-s)',
+                  padding: '8px 10px',
+                  border: '1px solid var(--border)',
+                  fontSize: '11px',
+                  fontFamily: 'var(--font-mono)',
+                  color: 'var(--text-body)',
                   overflow: 'hidden',
-                  maxHeight: '68px',
+                  maxHeight: '56px',
                   lineHeight: 1.45,
                   position: 'relative'
                 }}
@@ -422,34 +324,24 @@ export default function SerialListView({
                     bottom: 0,
                     left: 0,
                     right: 0,
-                    height: '24px',
-                    background: 'linear-gradient(to bottom, transparent, rgba(9, 13, 22, 0.95))',
+                    height: '20px',
+                    background: 'linear-gradient(to bottom, transparent, var(--code-bg))',
                     pointerEvents: 'none'
                   }}
                 />
               </div>
 
-              {/* Bottom footer: Tap to open indicator */}
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  fontSize: '11px',
-                  color: '#64748b'
-                }}
-              >
-                <span>Created {item.createdAt || 'Recent'}</span>
-                <span
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    color: subject.color || '#38bdf8',
-                    fontWeight: 500
-                  }}
-                >
-                  Full Access <ExternalLink size={12} />
+              {/* Footer */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: '11px',
+                color: 'var(--text-dim)'
+              }}>
+                <span>{item.createdAt || ''}</span>
+                <span style={{ color: 'var(--text-body)', fontWeight: 500 }}>
+                  Open
                 </span>
               </div>
             </div>
@@ -457,32 +349,29 @@ export default function SerialListView({
         })}
       </div>
 
-      {/* Floating Add Snippet Action on mobile */}
+      {/* FAB */}
       <button
         onClick={onAddNewSnippet}
-        className="mobile-fab"
-        title="Add Code Snippet"
-        aria-label="Add Code Snippet"
+        title="Add code snippet"
+        aria-label="Add code snippet"
         style={{
           position: 'fixed',
-          bottom: '24px',
-          right: '20px',
-          width: '56px',
-          height: '56px',
-          borderRadius: '28px',
-          background: `linear-gradient(135deg, ${subject.color || '#38bdf8'}, #6366f1)`,
+          bottom: '20px',
+          right: '16px',
+          width: '48px',
+          height: '48px',
+          borderRadius: 'var(--radius-l)',
+          background: 'var(--accent)',
           border: 'none',
-          color: '#ffffff',
+          color: '#111113',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: `0 8px 28px ${subject.color || '#38bdf8'}66`,
-          cursor: 'pointer',
           zIndex: 80,
-          transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
+          transition: 'transform 0.12s ease'
         }}
       >
-        <Plus size={26} />
+        <Plus size={22} />
       </button>
     </div>
   );
