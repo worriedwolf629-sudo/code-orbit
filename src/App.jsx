@@ -1,25 +1,50 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import Navbar from './components/Navbar';
+import GlobalSearchBar from './components/GlobalSearchBar';
 import SerialListView from './components/SerialListView';
+import RevisionView from './components/RevisionView';
 import NetworkDiagramView from './components/NetworkDiagramView';
 import CodeDetailModal from './components/CodeDetailModal';
 import NewSnippetModal from './components/NewSnippetModal';
 import SubjectModal from './components/SubjectModal';
 import BackupModal from './components/BackupModal';
 import PhoneConnectModal from './components/PhoneConnectModal';
+import AuthModal from './components/AuthModal';
+import TrashModal from './components/TrashModal';
 import Toast from './components/Toast';
 import { INITIAL_SUBJECTS, INITIAL_SNIPPETS } from './data/initialData';
-import { fetchVaultData, saveVaultData, subscribeToVaultSync } from './utils/syncService';
+import {
+  getAllSubjects,
+  getAllSnippets,
+  getTrashSnippets,
+  putSubject,
+  putSnippet,
+  softDeleteSnippet,
+  softDeleteSubject,
+  bulkPutSubjects,
+  bulkPutSnippets,
+  seedIfEmpty
+} from './utils/db';
+import {
+  initSyncEngine,
+  triggerSync,
+  subscribeSyncStatus,
+  subscribeDataChanges
+} from './utils/syncEngine';
+import { recordChangeAndCheckAutoBackup } from './utils/backupService';
+import { supabase } from './utils/supabaseClient';
 
 export default function App() {
-  const [subjects, setSubjects] = useState(INITIAL_SUBJECTS);
-  const [snippets, setSnippets] = useState(INITIAL_SNIPPETS);
+  const [subjects, setSubjects] = useState([]);
+  const [snippets, setSnippets] = useState([]);
+  const [trashCount, setTrashCount] = useState(0);
   const [activeSubjectId, setActiveSubjectId] = useState('sub-dsa');
-  const [isLiveSync, setIsLiveSync] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('offline');
+  const [user, setUser] = useState(null);
 
   // Views: 'list' (Serial Wise List) or 'network' (Obsidian Orb Network Diagram)
-  const [activeView, setActiveView] = useState('network'); // Default to Obsidian graph to showcase immediately!
+  const [activeView, setActiveView] = useState('network');
 
   // Modals
   const [selectedSnippet, setSelectedSnippet] = useState(null);
@@ -27,51 +52,11 @@ export default function App() {
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
 
   // Toast
   const [toastMessage, setToastMessage] = useState('');
-
-  // Flag to avoid recursive save triggers during remote sync updates
-  const isSyncingFromRemoteRef = useRef(false);
-
-  // 1. Initial load & real-time sync subscription across laptop & mobile
-  useEffect(() => {
-    let isMounted = true;
-
-    const syncFromRemote = async () => {
-      const data = await fetchVaultData();
-      if (!isMounted) return;
-      if (data.subjects && data.snippets) {
-        isSyncingFromRemoteRef.current = true;
-        setSubjects(data.subjects);
-        setSnippets(data.snippets);
-        setIsLiveSync(data.isLive);
-        setTimeout(() => {
-          isSyncingFromRemoteRef.current = false;
-        }, 300);
-      }
-    };
-
-    // Initial sync
-    syncFromRemote();
-
-    // Subscribe to SSE updates from server
-    const unsubscribe = subscribeToVaultSync(() => {
-      syncFromRemote();
-    });
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
-  }, []);
-
-  // Ensure active subject exists
-  useEffect(() => {
-    if (subjects.length > 0 && !subjects.some(s => s.id === activeSubjectId)) {
-      setActiveSubjectId(subjects[0].id);
-    }
-  }, [subjects, activeSubjectId]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -80,56 +65,129 @@ export default function App() {
     }, 2800);
   };
 
-  // Central persistence dispatcher: updates local state AND broadcasts to laptop/phone
-  const commitVaultChange = (newSubjects, newSnippets, feedbackMsg) => {
-    setSubjects(newSubjects);
-    setSnippets(newSnippets);
-    saveVaultData(newSubjects, newSnippets);
-    if (feedbackMsg) showToast(feedbackMsg);
-  };
-
-  const activeSubject = subjects.find(s => s.id === activeSubjectId) || subjects[0] || {
-    id: 'sub-default',
-    name: 'General',
-    color: '#38bdf8'
-  };
-
-  const currentSubjectSnippets = snippets.filter(s => s.subjectId === activeSubjectId);
-
-  // Snippet Handlers
-  const handleCreateSnippet = (newSnippet) => {
-    const updated = [...snippets, newSnippet];
-    commitVaultChange(subjects, updated, `Saved "${newSnippet.title}"! (Synced)`);
-    if (newSnippet.subjectId !== activeSubjectId) {
-      setActiveSubjectId(newSnippet.subjectId);
+  // Load vault data from local IndexedDB
+  const reloadFromLocalDB = useCallback(async () => {
+    try {
+      const [localSubs, localSnips, trash] = await Promise.all([
+        getAllSubjects(),
+        getAllSnippets(),
+        getTrashSnippets()
+      ]);
+      setSubjects(localSubs);
+      setSnippets(localSnips);
+      setTrashCount(trash.length);
+    } catch (err) {
+      console.error('Failed to load local DB:', err);
     }
-  };
+  }, []);
 
-  const handleUpdateSnippet = (updatedSnippet) => {
-    const updated = snippets.map(s => s.id === updatedSnippet.id ? updatedSnippet : s);
-    commitVaultChange(subjects, updated, 'Updated & synced across devices!');
-    setSelectedSnippet(updatedSnippet);
-  };
+  // 1. Initial Load: Seed DB if empty, initialize sync engine, check auth
+  useEffect(() => {
+    let isMounted = true;
 
-  const handleDeleteSnippet = (snippetId) => {
-    const remaining = snippets.filter(s => s.id !== snippetId);
-    let counter = 1;
-    const reindexed = remaining.map(s => {
-      if (s.subjectId === activeSubjectId) {
-        return { ...s, serialNumber: counter++ };
+    async function initialize() {
+      // Seed default samples if IndexedDB is brand new
+      await seedIfEmpty(INITIAL_SUBJECTS, INITIAL_SNIPPETS);
+      if (!isMounted) return;
+
+      await reloadFromLocalDB();
+
+      // Check auth session
+      if (supabase) {
+        const { data } = await supabase.auth.getUser();
+        if (data?.user && isMounted) {
+          setUser(data.user);
+        }
       }
-      return s;
+
+      // Initialize background sync & realtime listeners
+      initSyncEngine();
+    }
+
+    initialize();
+
+    // Subscribe to sync status updates
+    const unsubStatus = subscribeSyncStatus((status) => {
+      if (isMounted) setSyncStatus(status);
     });
 
-    commitVaultChange(subjects, reindexed, 'Deleted & synced');
-    if (selectedSnippet && selectedSnippet.id === snippetId) {
-      setSelectedSnippet(null);
+    // Subscribe to external data changes (e.g. from cloud realtime sync)
+    const unsubData = subscribeDataChanges(() => {
+      if (isMounted) reloadFromLocalDB();
+    });
+
+    return () => {
+      isMounted = false;
+      unsubStatus();
+      unsubData();
+    };
+  }, [reloadFromLocalDB]);
+
+  // Ensure active subject always points to a valid subject
+  useEffect(() => {
+    if (subjects.length > 0 && !subjects.some((s) => s.id === activeSubjectId)) {
+      setActiveSubjectId(subjects[0].id);
+    }
+  }, [subjects, activeSubjectId]);
+
+  const activeSubject =
+    subjects.find((s) => s.id === activeSubjectId) ||
+    subjects[0] || {
+      id: 'sub-default',
+      name: 'General',
+      color: '#2dd4bf'
+    };
+
+  const currentSubjectSnippets = snippets.filter((s) => s.subjectId === activeSubject.id);
+
+  // Snippet Handlers (Offline-First: write locally immediately, sync in background)
+  const handleCreateSnippet = async (newSnippet) => {
+    try {
+      await putSnippet(newSnippet, true);
+      await reloadFromLocalDB();
+      recordChangeAndCheckAutoBackup();
+      showToast(`Saved "${newSnippet.title}"`);
+      if (newSnippet.subjectId !== activeSubjectId) {
+        setActiveSubjectId(newSnippet.subjectId);
+      }
+      triggerSync();
+    } catch (err) {
+      alert(`Save error: ${err.message}`);
     }
   };
 
-  const handleMoveSnippet = (snippetId, direction) => {
+  const handleUpdateSnippet = async (updatedSnippet) => {
+    try {
+      await putSnippet(updatedSnippet, true);
+      await reloadFromLocalDB();
+      recordChangeAndCheckAutoBackup();
+      setSelectedSnippet(updatedSnippet);
+      showToast('Updated');
+      triggerSync();
+    } catch (err) {
+      alert(`Update error: ${err.message}`);
+    }
+  };
+
+  const handleDeleteSnippet = async (snippetId) => {
+    try {
+      // Soft delete: moves to Trash so data is never permanently lost accidentally
+      await softDeleteSnippet(snippetId);
+      await reloadFromLocalDB();
+      recordChangeAndCheckAutoBackup();
+      showToast('Moved to Trash (recoverable)');
+      if (selectedSnippet && selectedSnippet.id === snippetId) {
+        setSelectedSnippet(null);
+      }
+      triggerSync();
+    } catch (err) {
+      alert(`Delete error: ${err.message}`);
+    }
+  };
+
+  const handleMoveSnippet = async (snippetId, direction) => {
     const list = currentSubjectSnippets.slice().sort((a, b) => (a.serialNumber || 0) - (b.serialNumber || 0));
-    const currentIndex = list.findIndex(s => s.id === snippetId);
+    const currentIndex = list.findIndex((s) => s.id === snippetId);
     if (currentIndex === -1) return;
 
     const targetIndex = currentIndex + direction;
@@ -142,56 +200,89 @@ export default function App() {
     current.serialNumber = target.serialNumber;
     target.serialNumber = tempSerial;
 
-    const updated = snippets.map(s => {
-      if (s.id === current.id) return { ...current };
-      if (s.id === target.id) return { ...target };
-      return s;
-    });
-
-    commitVaultChange(subjects, updated, `Reordered to #${current.serialNumber} (Synced)`);
+    await Promise.all([
+      putSnippet(current, true),
+      putSnippet(target, true)
+    ]);
+    await reloadFromLocalDB();
+    recordChangeAndCheckAutoBackup();
+    showToast(`Reordered #${current.serialNumber}`);
+    triggerSync();
   };
 
   // Subject Handlers
-  const handleCreateSubject = (newSubject) => {
-    const newSubjects = [...subjects, newSubject];
-    commitVaultChange(newSubjects, snippets, `Subject "${newSubject.name}" created! (Synced)`);
-    setActiveSubjectId(newSubject.id);
-  };
-
-  const handleDeleteSubject = (subjectId) => {
-    const remainingSubs = subjects.filter(s => s.id !== subjectId);
-    const remainingSnips = snippets.filter(s => s.subjectId !== subjectId);
-    commitVaultChange(remainingSubs, remainingSnips, 'Subject deleted (Synced)');
-  };
-
-  // Backup & Reset Handlers
-  const handleImportData = (newSubjects, newSnippets) => {
-    commitVaultChange(newSubjects, newSnippets, 'Vault imported & synced!');
-    if (newSubjects.length > 0) {
-      setActiveSubjectId(newSubjects[0].id);
+  const handleCreateSubject = async (newSubject) => {
+    try {
+      await putSubject(newSubject, true);
+      await reloadFromLocalDB();
+      recordChangeAndCheckAutoBackup();
+      setActiveSubjectId(newSubject.id);
+      showToast(`Subject "${newSubject.name}" created`);
+      triggerSync();
+    } catch (err) {
+      alert(`Error creating subject: ${err.message}`);
     }
   };
 
-  const handleResetToDefaults = () => {
-    commitVaultChange(INITIAL_SUBJECTS, INITIAL_SNIPPETS, 'Reset to default samples!');
-    setActiveSubjectId(INITIAL_SUBJECTS[0].id);
+  const handleDeleteSubject = async (subjectId) => {
+    try {
+      await softDeleteSubject(subjectId);
+      // Soft delete snippets under this subject
+      const relatedSnippets = snippets.filter((s) => s.subjectId === subjectId);
+      for (const snip of relatedSnippets) {
+        await softDeleteSnippet(snip.id);
+      }
+      await reloadFromLocalDB();
+      recordChangeAndCheckAutoBackup();
+      showToast('Subject & snippets moved to Trash');
+      triggerSync();
+    } catch (err) {
+      alert(`Error deleting subject: ${err.message}`);
+    }
+  };
+
+  // Backup & Restore Handlers
+  const handleImportData = async (newSubjects, newSnippets) => {
+    try {
+      await bulkPutSubjects(newSubjects);
+      await bulkPutSnippets(newSnippets);
+      await reloadFromLocalDB();
+      showToast('Vault backup imported');
+      if (newSubjects.length > 0) {
+        setActiveSubjectId(newSubjects[0].id);
+      }
+      triggerSync();
+    } catch (err) {
+      alert(`Import failed: ${err.message}`);
+    }
+  };
+
+  const handleResetToDefaults = async () => {
+    try {
+      await bulkPutSubjects(INITIAL_SUBJECTS);
+      await bulkPutSnippets(INITIAL_SNIPPETS);
+      await reloadFromLocalDB();
+      setActiveSubjectId(INITIAL_SUBJECTS[0].id);
+      showToast('Reset to default samples');
+      triggerSync();
+    } catch (err) {
+      alert(`Reset error: ${err.message}`);
+    }
   };
 
   const handleManualSync = async () => {
-    const data = await fetchVaultData();
-    if (data.subjects && data.snippets) {
-      setSubjects(data.subjects);
-      setSnippets(data.snippets);
-      setIsLiveSync(data.isLive);
-      showToast('Synced with laptop in real time! 🟢');
+    const success = await triggerSync();
+    if (success) {
+      showToast('Cloud sync complete');
+      await reloadFromLocalDB();
     } else {
-      showToast('Working offline (cached locally)');
+      showToast('Offline — changes saved locally in IndexedDB');
     }
   };
 
   return (
     <div className="app-layout">
-      {/* Navbar with View Switcher, Subject Tabs & Live Sync Status */}
+      {/* Navbar with View Switcher, Cloud Sync Pill, Auth & Trash Actions */}
       <Navbar
         activeView={activeView}
         setActiveView={setActiveView}
@@ -199,17 +290,29 @@ export default function App() {
         activeSubjectId={activeSubjectId}
         setActiveSubjectId={setActiveSubjectId}
         snippets={snippets}
-        isLiveSync={isLiveSync}
+        syncStatus={syncStatus}
+        user={user}
         onManualSync={handleManualSync}
         onOpenSubjectModal={() => setIsSubjectModalOpen(true)}
         onOpenNewSnippetModal={() => setIsNewSnippetModalOpen(true)}
         onOpenBackupModal={() => setIsBackupModalOpen(true)}
         onOpenPhoneModal={() => setIsPhoneModalOpen(true)}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenTrashModal={() => setIsTrashModalOpen(true)}
+        trashCount={trashCount}
       />
 
       {/* Main Content Area */}
       <main className="main-content">
-        {/* Subject header */}
+        {/* Global Vault Search (Cross-Subject Fuzzy Search) */}
+        <GlobalSearchBar
+          snippets={snippets}
+          subjects={subjects}
+          onSelectSnippet={(snip) => setSelectedSnippet(snip)}
+          onSelectSubject={(subId) => setActiveSubjectId(subId)}
+        />
+
+        {/* Subject Header Banner */}
         <div
           style={{
             display: 'flex',
@@ -261,7 +364,7 @@ export default function App() {
           </span>
         </div>
 
-        {/* Dynamic View: Serial List or Obsidian-style Orb Network Diagram */}
+        {/* Dynamic View: Serial List, Revision Mode, or Obsidian-style Orb Network Diagram */}
         {activeView === 'list' ? (
           <SerialListView
             subject={activeSubject}
@@ -269,7 +372,16 @@ export default function App() {
             onSelectSnippet={(snip) => setSelectedSnippet(snip)}
             onAddNewSnippet={() => setIsNewSnippetModalOpen(true)}
             onMoveSnippet={handleMoveSnippet}
-            onDeleteSnippet={handleDeleteSnippet}
+            _onDeleteSnippet={handleDeleteSnippet}
+            onShowToast={showToast}
+            onUpdateSnippet={handleUpdateSnippet}
+          />
+        ) : activeView === 'revision' ? (
+          <RevisionView
+            subject={activeSubject}
+            snippets={currentSubjectSnippets}
+            onUpdateSnippet={handleUpdateSnippet}
+            onSelectSnippet={(snip) => setSelectedSnippet(snip)}
             onShowToast={showToast}
           />
         ) : (
@@ -284,11 +396,11 @@ export default function App() {
         )}
       </main>
 
-      {/* Code Detail & Full Access Modal (Opened by clicking list item or clicking network orb) */}
+      {/* Code Detail & Full Access Modal */}
       {selectedSnippet && (
         <CodeDetailModal
           snippet={selectedSnippet}
-          subject={subjects.find(s => s.id === selectedSnippet.subjectId) || activeSubject}
+          subject={subjects.find((s) => s.id === selectedSnippet.subjectId) || activeSubject}
           onClose={() => setSelectedSnippet(null)}
           onUpdateSnippet={handleUpdateSnippet}
           onDeleteSnippet={handleDeleteSnippet}
@@ -335,6 +447,29 @@ export default function App() {
       {isPhoneModalOpen && (
         <PhoneConnectModal
           onClose={() => setIsPhoneModalOpen(false)}
+          onShowToast={showToast}
+        />
+      )}
+
+      {/* Auth & Cloud Sync Modal */}
+      {isAuthModalOpen && (
+        <AuthModal
+          user={user}
+          onUserChange={(newUser) => setUser(newUser)}
+          onClose={() => setIsAuthModalOpen(false)}
+          onShowToast={showToast}
+        />
+      )}
+
+      {/* Trash Modal (Soft Deletes / Recovery) */}
+      {isTrashModalOpen && (
+        <TrashModal
+          subjects={subjects}
+          onClose={() => setIsTrashModalOpen(false)}
+          onSnippetRestored={async () => {
+            await reloadFromLocalDB();
+            triggerSync();
+          }}
           onShowToast={showToast}
         />
       )}

@@ -5,6 +5,9 @@ import {
   Plus,
   FileJson,
   Smartphone,
+  Trash2,
+  User,
+  Sparkles
 } from 'lucide-react';
 
 export default function Navbar({
@@ -14,13 +17,50 @@ export default function Navbar({
   activeSubjectId,
   setActiveSubjectId,
   snippets,
-  isLiveSync,
+  syncStatus = 'offline',
+  user = null,
   onManualSync,
   onOpenSubjectModal,
   onOpenNewSnippetModal,
   onOpenBackupModal,
-  onOpenPhoneModal
+  onOpenPhoneModal,
+  onOpenAuthModal,
+  onOpenTrashModal,
+  trashCount = 0
 }) {
+  // Sync Status Indicator Styling
+  const getSyncBadge = () => {
+    switch (syncStatus) {
+      case 'synced':
+        return {
+          dotColor: 'var(--accent)',
+          label: 'Synced',
+          title: 'Synced with cloud (click to sync now)'
+        };
+      case 'syncing':
+        return {
+          dotColor: '#f59e0b',
+          label: 'Syncing...',
+          title: 'Synchronizing changes with cloud...'
+        };
+      case 'error':
+        return {
+          dotColor: 'var(--danger)',
+          label: 'Sync Error',
+          title: 'Sync failed (click to retry)'
+        };
+      case 'offline':
+      default:
+        return {
+          dotColor: 'var(--text-dim)',
+          label: user ? 'Offline' : 'Local Only',
+          title: user ? 'Working offline (cached in IndexedDB)' : 'Sign in to enable cloud sync'
+        };
+    }
+  };
+
+  const syncBadge = getSyncBadge();
+
   return (
     <header
       style={{
@@ -40,10 +80,10 @@ export default function Navbar({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '12px'
+          gap: '8px'
         }}
       >
-        {/* Brand */}
+        {/* Brand & Sync Pill */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <h1
             style={{
@@ -58,34 +98,36 @@ export default function Navbar({
           </h1>
           <button
             onClick={onManualSync}
-            title="Sync status (click to refresh)"
+            title={syncBadge.title}
             aria-label="Sync status"
             style={{
-              background: 'none',
-              border: 'none',
-              padding: '2px 6px',
+              background: 'var(--bg-base)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-s)',
+              padding: '3px 7px',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px',
+              gap: '5px',
               fontSize: '11px',
-              color: isLiveSync ? 'var(--accent)' : 'var(--text-dim)',
-              fontWeight: 500
+              color: 'var(--text-body)',
+              fontWeight: 500,
+              cursor: 'pointer'
             }}
           >
             <span
               style={{
-                width: '5px',
-                height: '5px',
+                width: '6px',
+                height: '6px',
                 borderRadius: '50%',
-                background: isLiveSync ? 'var(--accent)' : 'var(--text-dim)'
+                background: syncBadge.dotColor
               }}
             />
-            <span>{isLiveSync ? 'Synced' : 'Local'}</span>
+            <span style={{ fontSize: '11px', color: syncBadge.dotColor }}>{syncBadge.label}</span>
           </button>
         </div>
 
         {/* View toggle and actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           {/* View switcher */}
           <div
             style={{
@@ -135,28 +177,97 @@ export default function Navbar({
               <List size={14} />
               <span>List</span>
             </button>
+
+            <button
+              onClick={() => setActiveView('revision')}
+              aria-label="Revision active recall view"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '5px 10px',
+                borderRadius: '6px',
+                background: activeView === 'revision' ? 'var(--bg-raised)' : 'transparent',
+                color: activeView === 'revision' ? 'var(--accent)' : 'var(--text-dim)',
+                fontWeight: 600,
+                fontSize: '12px',
+                transition: 'background-color 0.12s ease'
+              }}
+            >
+              <Sparkles size={14} />
+              <span>Recall</span>
+            </button>
           </div>
 
+          {/* Account / Cloud Sign In Button */}
           <button
-            onClick={onOpenPhoneModal}
-            title="Connect phone"
-            aria-label="Connect phone"
+            onClick={onOpenAuthModal}
+            title={user ? `Signed in as ${user.email}` : 'Sign in to cloud sync'}
+            aria-label="Account"
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: 'var(--radius-m)',
+              background: user ? 'var(--bg-raised)' : 'transparent',
+              border: '1px solid var(--border)',
+              color: user ? 'var(--accent)' : 'var(--text-body)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              fontWeight: 600
+            }}
+          >
+            {user && user.email ? (
+              user.email[0].toUpperCase()
+            ) : (
+              <User size={14} />
+            )}
+          </button>
+
+          {/* Trash Button */}
+          <button
+            onClick={onOpenTrashModal}
+            title="Trash / Deleted snippets"
+            aria-label="Trash"
             style={{
               width: '32px',
               height: '32px',
               borderRadius: 'var(--radius-m)',
               background: 'transparent',
               border: '1px solid var(--border)',
-              color: 'var(--text-body)',
+              color: trashCount > 0 ? 'var(--danger)' : 'var(--text-body)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'background-color 0.12s ease'
+              position: 'relative'
             }}
           >
-            <Smartphone size={14} />
+            <Trash2 size={14} />
+            {trashCount > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '-3px',
+                  right: '-3px',
+                  background: 'var(--danger)',
+                  color: '#ffffff',
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  width: '14px',
+                  height: '14px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {trashCount}
+              </span>
+            )}
           </button>
 
+          {/* Backup / Export */}
           <button
             onClick={onOpenBackupModal}
             title="Backup and import"
@@ -170,13 +281,33 @@ export default function Navbar({
               color: 'var(--text-body)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'background-color 0.12s ease'
+              justifyContent: 'center'
             }}
           >
             <FileJson size={14} />
           </button>
 
+          {/* Connect Phone */}
+          <button
+            onClick={onOpenPhoneModal}
+            title="Open on phone"
+            aria-label="Open on phone"
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: 'var(--radius-m)',
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              color: 'var(--text-body)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Smartphone size={14} />
+          </button>
+
+          {/* Add Snippet Button */}
           <button
             onClick={onOpenNewSnippetModal}
             title="New Snippet"

@@ -6,8 +6,14 @@ import {
   ChevronDown,
   Search,
   Plus,
-  ArrowUpDown
+  ArrowUpDown,
+  Star,
+  Clock,
+  HardDrive,
+  AlertTriangle,
+  Filter
 } from 'lucide-react';
+import { copyToClipboard } from '../utils/clipboard';
 
 export default function SerialListView({
   subject,
@@ -16,19 +22,35 @@ export default function SerialListView({
   onAddNewSnippet,
   onMoveSnippet,
   _onDeleteSnippet,
-  onShowToast
+  onShowToast,
+  onUpdateSnippet
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState(null);
   const [sortAsc, setSortAsc] = useState(true);
+  const [starredOnly, setStarredOnly] = useState(false);
+  const [selectedTag, setSelectedTag] = useState(null);
 
-  const filteredSnippets = snippets.filter(item => {
-    const q = searchQuery.toLowerCase();
-    return (
-      item.title.toLowerCase().includes(q) ||
-      item.code.toLowerCase().includes(q) ||
-      (item.language || '').toLowerCase().includes(q)
-    );
+  // Extract all unique tags in this subject
+  const allTags = Array.from(
+    new Set(
+      (Array.isArray(snippets) ? snippets : []).flatMap((s) => (Array.isArray(s.tags) ? s.tags : []))
+    )
+  ).filter(Boolean);
+
+  const filteredSnippets = (Array.isArray(snippets) ? snippets : []).filter((item) => {
+    if (!item) return false;
+    if (starredOnly && !item.is_starred) return false;
+    if (selectedTag && (!Array.isArray(item.tags) || !item.tags.includes(selectedTag))) return false;
+
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
+    const title = String(item.title || '').toLowerCase();
+    const code = String(item.code || '').toLowerCase();
+    const lang = String(item.language || '').toLowerCase();
+    const notes = String(item.notes || '').toLowerCase();
+    const tags = Array.isArray(item.tags) ? item.tags.join(' ').toLowerCase() : '';
+    return title.includes(q) || code.includes(q) || lang.includes(q) || tags.includes(q) || notes.includes(q);
   });
 
   const sortedSnippets = [...filteredSnippets].sort((a, b) => {
@@ -37,13 +59,31 @@ export default function SerialListView({
       : (b.serialNumber || 0) - (a.serialNumber || 0);
   });
 
-  const handleQuickCopy = (e, snippet) => {
+  const handleQuickCopy = async (e, snippet) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(snippet.code);
-    setCopiedId(snippet.id);
-    onShowToast(`Copied "${snippet.title}"`);
-    setTimeout(() => setCopiedId(null), 2000);
+    const res = await copyToClipboard(snippet.code || '');
+    if (res.success) {
+      setCopiedId(snippet.id);
+      onShowToast(`Copied "${snippet.title || 'snippet'}"`);
+      setTimeout(() => setCopiedId(null), 2000);
+    } else {
+      onShowToast('Copy failed, select manually');
+    }
   };
+
+  const handleToggleStar = (e, snippet) => {
+    e.stopPropagation();
+    if (!onUpdateSnippet) return;
+    const updated = {
+      ...snippet,
+      is_starred: !snippet.is_starred,
+      updated_at: new Date().toISOString()
+    };
+    onUpdateSnippet(updated);
+    onShowToast(updated.is_starred ? 'Added to Exam List ⭐' : 'Removed from Exam List');
+  };
+
+  const starredCount = (Array.isArray(snippets) ? snippets : []).filter((s) => s.is_starred).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -80,6 +120,29 @@ export default function SerialListView({
           />
         </div>
 
+        {/* Exam List Quick Filter Button */}
+        <button
+          onClick={() => setStarredOnly(!starredOnly)}
+          title="Filter only Starred / Exam snippets"
+          aria-label="Exam List filter"
+          style={{
+            padding: '8px 12px',
+            background: starredOnly ? '#f59e0b' : 'var(--bg-surface)',
+            border: starredOnly ? '1px solid #f59e0b' : '1px solid var(--border)',
+            borderRadius: 'var(--radius-m)',
+            color: starredOnly ? '#111113' : 'var(--text-body)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            fontSize: '12px',
+            fontWeight: 600,
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Star size={13} fill={starredOnly ? '#111113' : 'none'} />
+          <span>Exam List {starredCount > 0 ? `(${starredCount})` : ''}</span>
+        </button>
+
         <button
           onClick={() => setSortAsc(!sortAsc)}
           title={`Sort: ${sortAsc ? '1 to N' : 'N to 1'}`}
@@ -100,6 +163,48 @@ export default function SerialListView({
           <span className="hide-on-small-mobile">#{sortAsc ? '1-N' : 'N-1'}</span>
         </button>
       </div>
+
+      {/* Tag Filter Chips Bar */}
+      {allTags.length > 0 && (
+        <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', alignItems: 'center', paddingBottom: '2px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <Filter size={10} /> Tags:
+          </span>
+          <button
+            onClick={() => setSelectedTag(null)}
+            style={{
+              padding: '3px 8px',
+              borderRadius: '12px',
+              background: selectedTag === null ? 'var(--accent-dim)' : 'transparent',
+              border: selectedTag === null ? '1px solid var(--accent)' : '1px solid var(--border)',
+              color: selectedTag === null ? 'var(--accent)' : 'var(--text-dim)',
+              fontSize: '11px',
+              fontWeight: 500,
+              whiteSpace: 'nowrap'
+            }}
+          >
+            All
+          </button>
+          {allTags.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+              style={{
+                padding: '3px 8px',
+                borderRadius: '12px',
+                background: selectedTag === tag ? 'var(--accent-dim)' : 'transparent',
+                border: selectedTag === tag ? '1px solid var(--accent)' : '1px solid var(--border)',
+                color: selectedTag === tag ? 'var(--accent)' : 'var(--text-dim)',
+                fontSize: '11px',
+                fontWeight: 500,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              #{tag}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Count */}
       <div
@@ -229,15 +334,80 @@ export default function SerialListView({
                       <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
                         {lineCount} lines
                       </span>
+
+                      {item.time_complexity && (
+                        <span style={{
+                          fontSize: '10px',
+                          fontFamily: 'var(--font-mono)',
+                          color: '#38bdf8',
+                          background: 'rgba(56, 189, 248, 0.1)',
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '2px'
+                        }}>
+                          <Clock size={10} /> {item.time_complexity}
+                        </span>
+                      )}
+
+                      {item.space_complexity && (
+                        <span style={{
+                          fontSize: '10px',
+                          fontFamily: 'var(--font-mono)',
+                          color: '#a78bfa',
+                          background: 'rgba(167, 139, 250, 0.1)',
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '2px'
+                        }}>
+                          <HardDrive size={10} /> {item.space_complexity}
+                        </span>
+                      )}
+
+                      {Array.isArray(item.tags) && item.tags.slice(0, 3).map((t) => (
+                        <span key={t} style={{
+                          fontSize: '10px',
+                          color: 'var(--text-dim)',
+                          background: 'var(--bg-raised)',
+                          padding: '1px 5px',
+                          borderRadius: '3px'
+                        }}>
+                          #{t}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </div>
 
                 {/* Actions */}
                 <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
                   onClick={(e) => e.stopPropagation()}
                 >
+                  {/* Star / Exam List Toggle Button */}
+                  <button
+                    onClick={(e) => handleToggleStar(e, item)}
+                    title={item.is_starred ? 'Remove from Exam List' : 'Add to Exam List'}
+                    aria-label="Star snippet"
+                    style={{
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: 'var(--radius-s)',
+                      border: item.is_starred ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border)',
+                      background: item.is_starred ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+                      color: item.is_starred ? '#f59e0b' : 'var(--text-dim)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.12s ease'
+                    }}
+                  >
+                    <Star size={13} fill={item.is_starred ? '#f59e0b' : 'none'} />
+                  </button>
+
                   <button
                     onClick={(e) => handleQuickCopy(e, item)}
                     title="Copy code"

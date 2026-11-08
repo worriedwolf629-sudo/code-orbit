@@ -10,9 +10,19 @@ import {
   Minimize2,
   Save,
   BookOpen,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle,
+  Star,
+  Eye,
+  EyeOff,
+  Clock,
+  HardDrive,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import { highlightCode, SUPPORTED_LANGUAGES } from '../utils/syntaxHighlight';
+import { copyToClipboard } from '../utils/clipboard';
+import { checkSnippetSize, validateOrRepairSnippet } from '../utils/schema';
 
 export default function CodeDetailModal({
   snippet,
@@ -25,12 +35,17 @@ export default function CodeDetailModal({
   const [isEditing, setIsEditing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isCodeHidden, setIsCodeHidden] = useState(false);
 
   const [editTitle, setEditTitle] = useState('');
   const [editCode, setEditCode] = useState('');
   const [editLanguage, setEditLanguage] = useState('java');
   const [editNotes, setEditNotes] = useState('');
   const [editSerial, setEditSerial] = useState(1);
+  const [editTags, setEditTags] = useState('');
+  const [editTimeComplexity, setEditTimeComplexity] = useState('');
+  const [editSpaceComplexity, setEditSpaceComplexity] = useState('');
+  const [editCommonMistake, setEditCommonMistake] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
@@ -40,8 +55,13 @@ export default function CodeDetailModal({
       setEditLanguage(snippet.language || 'java');
       setEditNotes(snippet.notes || '');
       setEditSerial(snippet.serialNumber || 1);
+      setEditTags(Array.isArray(snippet.tags) ? snippet.tags.join(', ') : '');
+      setEditTimeComplexity(snippet.time_complexity || '');
+      setEditSpaceComplexity(snippet.space_complexity || '');
+      setEditCommonMistake(snippet.common_mistake || '');
       setIsEditing(false);
       setShowDeleteConfirm(false);
+      setIsCodeHidden(false);
     }
   }, [snippet]);
 
@@ -55,11 +75,18 @@ export default function CodeDetailModal({
 
   if (!snippet) return null;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(isEditing ? editCode : snippet.code);
-    setCopied(true);
-    onShowToast('Copied to clipboard');
-    setTimeout(() => setCopied(false), 2000);
+  const editSizeCheck = checkSnippetSize(editCode);
+
+  const handleCopy = async () => {
+    const textToCopy = isEditing ? editCode : (snippet.code || '');
+    const res = await copyToClipboard(textToCopy);
+    if (res.success) {
+      setCopied(true);
+      onShowToast('Copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      onShowToast('Copy failed, select manually');
+    }
   };
 
   const handleSave = () => {
@@ -72,17 +99,75 @@ export default function CodeDetailModal({
       return;
     }
 
-    onUpdateSnippet({
+    if (!editSizeCheck.ok) {
+      if (!window.confirm(`${editSizeCheck.warning}\n\nSave anyway?`)) {
+        return;
+      }
+    }
+
+    const parsedTags = editTags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const updatedRaw = {
       ...snippet,
       title: editTitle.trim(),
       code: editCode,
       language: editLanguage,
       notes: editNotes.trim(),
-      serialNumber: parseInt(editSerial, 10) || snippet.serialNumber
-    });
+      serialNumber: parseInt(editSerial, 10) || snippet.serialNumber,
+      tags: parsedTags,
+      time_complexity: editTimeComplexity.trim(),
+      space_complexity: editSpaceComplexity.trim(),
+      common_mistake: editCommonMistake.trim(),
+      updated_at: new Date().toISOString()
+    };
 
+    const validated = validateOrRepairSnippet(updatedRaw, snippet.subjectId);
+    onUpdateSnippet(validated);
     setIsEditing(false);
     onShowToast('Updated');
+  };
+
+  const handleToggleStar = () => {
+    const updated = {
+      ...snippet,
+      is_starred: !snippet.is_starred,
+      updated_at: new Date().toISOString()
+    };
+    onUpdateSnippet(updated);
+    onShowToast(updated.is_starred ? 'Added to Exam List ⭐' : 'Removed from Exam List');
+  };
+
+  const handleRecallResult = (result) => {
+    const isKnew = result === 'knew';
+    const updated = {
+      ...snippet,
+      recall_score: isKnew ? 'knew' : 'missed',
+      review_count: isKnew ? (snippet.review_count || 0) + 1 : (snippet.review_count || 0),
+      missed_count: !isKnew ? (snippet.missed_count || 0) + 1 : (snippet.missed_count || 0),
+      last_reviewed: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    onUpdateSnippet(updated);
+    onShowToast(isKnew ? 'Great job! Marked as Known ✅' : 'Marked for Practice 🚨');
+  };
+
+  const formatLastReviewed = (iso) => {
+    if (!iso) return 'Not reviewed yet';
+    try {
+      const diffMs = Date.now() - new Date(iso).getTime();
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+      const diffDays = Math.floor(diffHours / 24);
+      return `${diffDays}d ago`;
+    } catch {
+      return 'Recently';
+    }
   };
 
   const handleDownloadFile = () => {
@@ -91,10 +176,10 @@ export default function CodeDetailModal({
       javascript: 'js', sql: 'sql', plaintext: 'txt'
     };
     const ext = extMap[snippet.language] || 'txt';
-    const safeName = snippet.title.toLowerCase().replace(/[^a-z0-9]/gi, '_') || 'snippet';
+    const safeName = (snippet.title || 'snippet').toLowerCase().replace(/[^a-z0-9]/gi, '_') || 'snippet';
     const filename = `${safeName}.${ext}`;
 
-    const blob = new Blob([snippet.code], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([snippet.code || ''], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -106,8 +191,8 @@ export default function CodeDetailModal({
     onShowToast(`Downloaded ${filename}`);
   };
 
-  const codeHtml = highlightCode(snippet.code, snippet.language);
-  const codeLines = snippet.code.split('\n');
+  const codeHtml = highlightCode(snippet.code || '', snippet.language || 'java');
+  const codeLines = (snippet.code || '').split('\n');
 
   const inputStyle = {
     width: '100%',
@@ -215,6 +300,22 @@ export default function CodeDetailModal({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button
+              onClick={handleToggleStar}
+              title={snippet.is_starred ? 'Remove from Exam List' : 'Add to Exam List'}
+              aria-label="Star snippet"
+              style={{
+                background: snippet.is_starred ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+                border: snippet.is_starred ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border)',
+                borderRadius: 'var(--radius-s)',
+                width: '30px', height: '30px',
+                color: snippet.is_starred ? '#f59e0b' : 'var(--text-dim)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+            >
+              <Star size={14} fill={snippet.is_starred ? '#f59e0b' : 'none'} />
+            </button>
+
+            <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               aria-label="Toggle fullscreen"
@@ -294,18 +395,139 @@ export default function CodeDetailModal({
                     resize: 'vertical',
                     background: 'var(--code-bg)'
                   }} />
+                {editSizeCheck.warning && (
+                  <div
+                    style={{
+                      marginTop: '6px',
+                      padding: '6px 10px',
+                      borderRadius: 'var(--radius-s)',
+                      background: editSizeCheck.ok ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                      border: `1px solid ${editSizeCheck.ok ? '#f59e0b' : 'var(--danger)'}`,
+                      color: editSizeCheck.ok ? '#f59e0b' : 'var(--danger)',
+                      fontSize: '11px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <AlertTriangle size={13} />
+                    <span>{editSizeCheck.warning}</span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 180px' }}>
+                  <label style={labelStyle}>Time Complexity</label>
+                  <input
+                    type="text"
+                    value={editTimeComplexity}
+                    onChange={(e) => setEditTimeComplexity(e.target.value)}
+                    placeholder="e.g. O(log N)"
+                    style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                  />
+                </div>
+                <div style={{ flex: '1 1 180px' }}>
+                  <label style={labelStyle}>Space Complexity</label>
+                  <input
+                    type="text"
+                    value={editSpaceComplexity}
+                    onChange={(e) => setEditSpaceComplexity(e.target.value)}
+                    placeholder="e.g. O(1)"
+                    style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                  />
+                </div>
               </div>
 
               <div>
-                <label style={labelStyle}>Notes (optional)</label>
-                <input type="text" value={editNotes} onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder="Time complexity, key takeaways..."
-                  style={{ ...inputStyle, fontSize: '13px' }} />
+                <label style={labelStyle}>Tags (comma-separated)</label>
+                <input
+                  type="text"
+                  value={editTags}
+                  onChange={(e) => setEditTags(e.target.value)}
+                  placeholder="e.g. Binary Search, Arrays, Two Pointers"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Common Exam Mistake / Trap (optional)</label>
+                <textarea
+                  rows={2}
+                  value={editCommonMistake}
+                  onChange={(e) => setEditCommonMistake(e.target.value)}
+                  placeholder="e.g. Integer overflow on (low+high)/2; use low + (high-low)/2 instead."
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Notes / Revision Key Points</label>
+                <textarea
+                  rows={2}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Key takeaways, base cases, logic summary..."
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                />
               </div>
             </div>
           ) : (
             <>
               <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                  {snippet.time_complexity && (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontFamily: 'var(--font-mono)',
+                        color: '#38bdf8',
+                        background: 'rgba(56, 189, 248, 0.1)',
+                        padding: '2px 7px',
+                        borderRadius: '4px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Clock size={11} /> {snippet.time_complexity}
+                    </span>
+                  )}
+
+                  {snippet.space_complexity && (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontFamily: 'var(--font-mono)',
+                        color: '#a78bfa',
+                        background: 'rgba(167, 139, 250, 0.1)',
+                        padding: '2px 7px',
+                        borderRadius: '4px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <HardDrive size={11} /> {snippet.space_complexity}
+                    </span>
+                  )}
+
+                  {Array.isArray(snippet.tags) && snippet.tags.map((t) => (
+                    <span
+                      key={t}
+                      style={{
+                        fontSize: '11px',
+                        color: 'var(--text-dim)',
+                        background: 'var(--bg-raised)',
+                        padding: '2px 6px',
+                        borderRadius: '4px'
+                      }}
+                    >
+                      #{t}
+                    </span>
+                  ))}
+                </div>
+
                 <h2 style={{
                   margin: '0 0 6px 0',
                   fontSize: '18px',
@@ -328,7 +550,8 @@ export default function CodeDetailModal({
                     lineHeight: 1.45,
                     display: 'flex',
                     alignItems: 'flex-start',
-                    gap: '6px'
+                    gap: '6px',
+                    marginBottom: '10px'
                   }}>
                     <BookOpen size={14} style={{ marginTop: '2px', flexShrink: 0, color: 'var(--text-dim)' }} />
                     <span>{snippet.notes}</span>
@@ -336,7 +559,7 @@ export default function CodeDetailModal({
                 )}
               </div>
 
-              {/* Code block */}
+              {/* Code block with Active Recall hide-code toggle */}
               <div style={{
                 backgroundColor: 'var(--code-bg)',
                 borderRadius: 'var(--radius-m)',
@@ -353,9 +576,31 @@ export default function CodeDetailModal({
                   fontSize: '11px',
                   color: 'var(--text-dim)'
                 }}>
-                  <span style={{ fontFamily: 'var(--font-mono)' }}>
-                    {codeLines.length} lines
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>
+                      {codeLines.length} lines
+                    </span>
+                    <button
+                      onClick={() => setIsCodeHidden(!isCodeHidden)}
+                      title={isCodeHidden ? 'Reveal code' : 'Hide code for active recall'}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: isCodeHidden ? 'rgba(45, 212, 191, 0.15)' : 'transparent',
+                        border: '1px solid var(--border)',
+                        color: isCodeHidden ? 'var(--accent)' : 'var(--text-dim)',
+                        padding: '3px 8px',
+                        borderRadius: 'var(--radius-s)',
+                        fontSize: '11px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {isCodeHidden ? <Eye size={12} /> : <EyeOff size={12} />}
+                      <span>{isCodeHidden ? 'Reveal Code' : 'Hide Code'}</span>
+                    </button>
+                  </div>
+
                   <button
                     onClick={handleCopy}
                     style={{
@@ -377,40 +622,168 @@ export default function CodeDetailModal({
                   </button>
                 </div>
 
-                {/* Code with line numbers */}
-                <div style={{
-                  display: 'flex',
-                  maxHeight: isFullscreen ? 'calc(100vh - 200px)' : '380px',
-                  overflowY: 'auto',
-                  overflowX: 'auto',
-                  padding: '10px 0'
-                }}>
-                  <div style={{
-                    padding: '0 10px 0 12px',
-                    userSelect: 'none',
-                    textAlign: 'right',
-                    color: 'var(--text-dim)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '12px',
-                    lineHeight: '20px',
-                    borderRight: '1px solid var(--border)'
-                  }}>
-                    {codeLines.map((_, i) => (
-                      <div key={i}>{i + 1}</div>
-                    ))}
+                {/* Code or Masked Recall Screen */}
+                {isCodeHidden ? (
+                  <div
+                    style={{
+                      padding: '40px 20px',
+                      textAlign: 'center',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '12px',
+                      background: 'var(--bg-base)'
+                    }}
+                  >
+                    <EyeOff size={32} style={{ color: 'var(--accent)', opacity: 0.8 }} />
+                    <div>
+                      <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Active Recall Mode Active
+                      </p>
+                      <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-dim)', maxWidth: '340px' }}>
+                        Try to recall the implementation, edge cases, and time complexity before checking the code.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setIsCodeHidden(false)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 'var(--radius-m)',
+                        background: 'var(--accent)',
+                        color: '#111113',
+                        border: 'none',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        marginTop: '4px'
+                      }}
+                    >
+                      <Eye size={14} /> Reveal Code
+                    </button>
                   </div>
-
-                  <pre style={{
-                    margin: 0,
-                    padding: '0 14px',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '12px',
-                    lineHeight: '20px',
-                    color: 'var(--text-primary)',
-                    flex: 1
+                ) : (
+                  <div style={{
+                    display: 'flex',
+                    maxHeight: isFullscreen ? 'calc(100vh - 200px)' : '380px',
+                    overflowY: 'auto',
+                    overflowX: 'auto',
+                    padding: '10px 0'
                   }}>
-                    <code dangerouslySetInnerHTML={{ __html: codeHtml }} />
-                  </pre>
+                    <div style={{
+                      padding: '0 10px 0 12px',
+                      userSelect: 'none',
+                      textAlign: 'right',
+                      color: 'var(--text-dim)',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '12px',
+                      lineHeight: '20px',
+                      borderRight: '1px solid var(--border)'
+                    }}>
+                      {codeLines.map((_, i) => (
+                        <div key={i}>{i + 1}</div>
+                      ))}
+                    </div>
+
+                    <pre style={{
+                      margin: 0,
+                      padding: '0 14px',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '12px',
+                      lineHeight: '20px',
+                      color: 'var(--text-primary)',
+                      flex: 1
+                    }}>
+                      <code dangerouslySetInnerHTML={{ __html: codeHtml }} />
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+              {/* Common Exam Mistake Trap Box */}
+              {snippet.common_mistake && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-m)',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px'
+                  }}
+                >
+                  <AlertTriangle size={16} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ fontSize: '13px', color: '#fca5a5', lineHeight: 1.45 }}>
+                    <strong style={{ color: '#ef4444' }}>Common Exam Trap: </strong>
+                    {snippet.common_mistake}
+                  </div>
+                </div>
+              )}
+
+              {/* Active Recall Scoring Bar */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                  padding: '10px 14px',
+                  background: 'var(--bg-raised)',
+                  borderRadius: 'var(--radius-m)',
+                  border: '1px solid var(--border)'
+                }}
+              >
+                <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+                  <span>Last reviewed: <strong style={{ color: 'var(--text-body)' }}>{formatLastReviewed(snippet.last_reviewed)}</strong></span>
+                  {(snippet.review_count > 0 || snippet.missed_count > 0) && (
+                    <span style={{ marginLeft: '8px' }}>
+                      (Knew: <strong style={{ color: '#4ade80' }}>{snippet.review_count || 0}</strong> • Missed: <strong style={{ color: '#f87171' }}>{snippet.missed_count || 0}</strong>)
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => handleRecallResult('knew')}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 'var(--radius-s)',
+                      background: snippet.recall_score === 'knew' ? '#22c55e' : 'rgba(34, 197, 94, 0.15)',
+                      color: snippet.recall_score === 'knew' ? '#111113' : '#4ade80',
+                      border: '1px solid rgba(34, 197, 94, 0.3)',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <CheckCircle2 size={14} /> I knew it
+                  </button>
+
+                  <button
+                    onClick={() => handleRecallResult('missed')}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 'var(--radius-s)',
+                      background: snippet.recall_score === 'missed' ? '#ef4444' : 'rgba(239, 68, 68, 0.15)',
+                      color: snippet.recall_score === 'missed' ? '#ffffff' : '#f87171',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <XCircle size={14} /> Missed it
+                  </button>
                 </div>
               </div>
             </>

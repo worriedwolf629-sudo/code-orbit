@@ -330,7 +330,7 @@ export default function NetworkDiagramView({
         });
       }
 
-      const filterLower = searchQuery.trim().toLowerCase();
+      const filterLower = (searchQuery || '').trim().toLowerCase();
       const hasFilter = filterLower.length > 0;
 
       // Draw Links
@@ -369,7 +369,8 @@ export default function NetworkDiagramView({
       s.nodes.forEach((node) => {
         const isHovered = activeHover && activeHover.id === node.id;
         const isNeighbor = activeHover && connectedNodeIds.has(node.id);
-        const matchesFilter = hasFilter && node.label.toLowerCase().includes(filterLower);
+        const labelStr = String(node?.label || '');
+        const matchesFilter = hasFilter && labelStr.toLowerCase().includes(filterLower);
 
         // Alpha calculation
         let alpha = 1;
@@ -392,7 +393,7 @@ export default function NetworkDiagramView({
           ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
           ctx.fill();
 
-          ctx.strokeStyle = isHovered ? '#ffffff' : node.color;
+          ctx.strokeStyle = isHovered ? '#ffffff' : (node.color || 'var(--accent)');
           ctx.lineWidth = isHovered ? 2.5 : 2;
           ctx.stroke();
 
@@ -401,12 +402,12 @@ export default function NetworkDiagramView({
           ctx.font = '600 12px "Outfit", sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(node.label, node.x, node.y);
+          ctx.fillText(labelStr, node.x, node.y);
         } else {
           // Snippet Node: clean solid circular dot
           const r = isHovered ? node.radius + 3 : node.radius;
 
-          ctx.fillStyle = node.color;
+          ctx.fillStyle = node.color || '#2dd4bf';
           ctx.beginPath();
           ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
           ctx.fill();
@@ -420,13 +421,13 @@ export default function NetworkDiagramView({
           ctx.font = '700 9px "JetBrains Mono", monospace';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(`${node.serialNumber}`, node.x, node.y);
+          ctx.fillText(`${node.serialNumber || 1}`, node.x, node.y);
 
           // Obsidian Label (shown if hovered, neighbor, or zoomed in)
           const shouldShowLabel = isHovered || isNeighbor || matchesFilter || s.transform.k > 1.1;
 
           if (shouldShowLabel) {
-            const title = node.label.length > 24 ? node.label.slice(0, 22) + '…' : node.label;
+            const title = labelStr.length > 24 ? labelStr.slice(0, 22) + '…' : labelStr;
             ctx.font = '500 11px "Outfit", sans-serif';
             const textW = ctx.measureText(title).width;
             const labelY = node.y + r + 11;
@@ -435,7 +436,7 @@ export default function NetworkDiagramView({
             const padX = 6;
             const padY = 3;
             ctx.fillStyle = isHovered ? '#27272a' : '#18181b';
-            ctx.strokeStyle = isHovered ? node.color : '#2e2e34';
+            ctx.strokeStyle = isHovered ? (node.color || 'var(--accent)') : '#2e2e34';
             ctx.lineWidth = 1;
 
             ctx.beginPath();
@@ -458,7 +459,10 @@ export default function NetworkDiagramView({
       });
 
       ctx.restore();
-      animationFrameId = requestAnimationFrame(render);
+      // Only keep scheduling if physics is active or user is interacting
+      if (s.alpha > 0.005 || s.dragNode || s.isDragging) {
+        animationFrameId = requestAnimationFrame(render);
+      }
     };
 
     animationFrameId = requestAnimationFrame(render);

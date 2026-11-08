@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clipboard, Check } from 'lucide-react';
+import { X, Clipboard, Check, AlertTriangle } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../utils/syntaxHighlight';
+import { checkSnippetSize, validateOrRepairSnippet } from '../utils/schema';
 
 export default function NewSnippetModal({
   subjects,
@@ -18,6 +19,10 @@ export default function NewSnippetModal({
   const [language, setLanguage] = useState('java');
   const [notes, setNotes] = useState('');
   const [serialNumber, setSerialNumber] = useState(currentSnippetsCount + 1);
+  const [tags, setTags] = useState('');
+  const [timeComplexity, setTimeComplexity] = useState('');
+  const [spaceComplexity, setSpaceComplexity] = useState('');
+  const [commonMistake, setCommonMistake] = useState('');
 
   // Close on Escape
   useEffect(() => {
@@ -42,6 +47,8 @@ export default function NewSnippetModal({
     }
   };
 
+  const sizeCheck = checkSnippetSize(code);
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -55,7 +62,18 @@ export default function NewSnippetModal({
       return;
     }
 
-    const newSnippet = {
+    if (!sizeCheck.ok) {
+      if (!window.confirm(`${sizeCheck.warning}\n\nDo you want to save it anyway?`)) {
+        return;
+      }
+    }
+
+    const parsedTags = tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const rawSnippet = {
       id: `snip-${Date.now()}`,
       subjectId: selectedSubjectId,
       title: title.trim(),
@@ -63,10 +81,20 @@ export default function NewSnippetModal({
       language: language,
       notes: notes.trim(),
       serialNumber: parseInt(serialNumber, 10) || (currentSnippetsCount + 1),
+      tags: parsedTags,
+      time_complexity: timeComplexity.trim(),
+      space_complexity: spaceComplexity.trim(),
+      common_mistake: commonMistake.trim(),
+      is_starred: false,
+      recall_score: null,
+      review_count: 0,
+      missed_count: 0,
+      last_reviewed: null,
       createdAt: new Date().toISOString().split('T')[0]
     };
 
-    onCreateSnippet(newSnippet);
+    const validatedSnippet = validateOrRepairSnippet(rawSnippet, selectedSubjectId);
+    onCreateSnippet(validatedSnippet);
     onShowToast(`Saved "${title.trim()}"`);
     onClose();
   };
@@ -344,6 +372,114 @@ export default function NewSnippetModal({
                 lineHeight: '1.5',
                 resize: 'vertical',
                 tabSize: 2
+              }}
+            />
+
+            {sizeCheck.warning && (
+              <div
+                style={{
+                  marginTop: '6px',
+                  padding: '6px 10px',
+                  borderRadius: 'var(--radius-s)',
+                  background: sizeCheck.ok ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                  border: `1px solid ${sizeCheck.ok ? '#f59e0b' : 'var(--danger)'}`,
+                  color: sizeCheck.ok ? '#f59e0b' : 'var(--danger)',
+                  fontSize: '11px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <AlertTriangle size={13} />
+                <span>{sizeCheck.warning}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Complexity & Tags */}
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 120px' }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '4px' }}>
+                Time Complexity
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. O(log N)"
+                value={timeComplexity}
+                onChange={(e) => setTimeComplexity(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'var(--bg-base)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-m)',
+                  padding: '8px 10px',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  fontFamily: 'var(--font-mono)'
+                }}
+              />
+            </div>
+            <div style={{ flex: '1 1 120px' }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '4px' }}>
+                Space Complexity
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. O(1)"
+                value={spaceComplexity}
+                onChange={(e) => setSpaceComplexity(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'var(--bg-base)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-m)',
+                  padding: '8px 10px',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  fontFamily: 'var(--font-mono)'
+                }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '4px' }}>
+              Tags (comma-separated)
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Binary Search, Arrays, Two Pointers"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              style={{
+                width: '100%',
+                background: 'var(--bg-base)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-m)',
+                padding: '8px 10px',
+                color: 'var(--text-primary)',
+                fontSize: '12px'
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '4px' }}>
+              Common Exam Mistake / Trap (optional)
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Forget to check if head is null; index out of bounds"
+              value={commonMistake}
+              onChange={(e) => setCommonMistake(e.target.value)}
+              style={{
+                width: '100%',
+                background: 'var(--bg-base)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-m)',
+                padding: '8px 10px',
+                color: 'var(--text-primary)',
+                fontSize: '12px'
               }}
             />
           </div>

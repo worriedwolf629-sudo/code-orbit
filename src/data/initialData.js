@@ -35,6 +35,10 @@ export const INITIAL_SNIPPETS = [
     language: "java",
     tags: ["Searching", "Arrays", "O(log N)"],
     notes: "Avoid integer overflow by using low + (high - low) / 2 instead of (low + high) / 2. Array must be sorted.",
+    time_complexity: "O(log N)",
+    space_complexity: "O(1)",
+    common_mistake: "Integer overflow using (low + high) / 2 instead of low + (high - low) / 2.",
+    is_starred: true,
     createdAt: "2026-10-20",
     code: `public class BinarySearch {
     public static int search(int[] nums, int target) {
